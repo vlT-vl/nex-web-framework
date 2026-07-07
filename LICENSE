@@ -1,0 +1,73 @@
+nex Web Framework — Proprietary Source-Available License
+Copyright (c) 2026 Veronesi Lorenzo (vlT)
+All rights reserved.
+
+────────────────────────────────────────────────────────────
+
+GRANT OF USE
+
+Permission is granted, free of charge, to any person obtaining a copy of
+the nex web framework to read and study its source code for personal or
+educational purposes, subject to the conditions and restrictions set out
+below.
+
+────────────────────────────────────────────────────────────
+
+RESTRICTIONS
+
+1. NO MODIFICATION — The source code may be read and studied, but may NOT
+   be modified, adapted, translated, or used as the basis for derivative
+   works, in whole or in part, without the prior written permission of the
+   copyright holder.
+
+2. NO REDISTRIBUTION — The framework, whether in source or binary form, may
+   NOT be copied, forked, republished, sublicensed, vendored, bundled, or
+   repackaged without the prior written permission of the copyright holder.
+
+3. NO REVERSE ENGINEERING — Reverse engineering, decompilation, disassembly,
+   or any attempt to reconstruct the source code from a compiled or
+   obfuscated binary is strictly prohibited, except as required by applicable
+   mandatory law.
+
+4. NO COMMERCIAL EXPLOITATION — The framework may NOT be sold, commercialized,
+   incorporated into a commercial product or service, or used to provide a
+   paid service to third parties without the prior written permission of the
+   copyright holder.
+
+5. NO INTEGRATION WITHOUT CONSENT — Incorporating, embedding, vendoring, or
+   otherwise using nex web framework as part of another project, product,
+   service, framework, template, or SDK requires the prior express written
+   consent of Veronesi Lorenzo (vlT).
+
+────────────────────────────────────────────────────────────
+
+INTELLECTUAL PROPERTY
+
+All intellectual property rights — including but not limited to copyright,
+trade secrets, know-how, design, visual identity, and any applicable
+patents — remain exclusively with Veronesi Lorenzo (vlT). This license
+grants no ownership rights of any kind. The name "nex", its logos, icons,
+and associated trade dress may not be used without prior written consent.
+
+────────────────────────────────────────────────────────────
+
+DISCLAIMER OF WARRANTIES
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE, OR NON-INFRINGEMENT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY —
+WHETHER IN CONTRACT, TORT, OR OTHERWISE — ARISING FROM OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+────────────────────────────────────────────────────────────
+
+GOVERNING LAW
+
+This license is governed by the laws of Italy. Any dispute arising from or
+relating to this license shall be subject to the exclusive jurisdiction of
+the courts of Milan (MI), Italy.
+
+────────────────────────────────────────────────────────────
+
+For licensing inquiries or permission requests: veronesilorenzo@outlook.com

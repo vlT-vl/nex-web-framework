@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/nexicon.svg" />
+    <script>
+      (() => {
+        try {
+          const saved = localStorage.getItem("nex-theme");
+          const preference = saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
+          const system = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          const theme = preference === "system" ? system : preference;
+          document.documentElement.dataset.theme = theme;
+          document.documentElement.dataset.themePreference = preference;
+          document.documentElement.style.colorScheme = theme;
+        } catch {}
+      })();
+    </script>
+    <title>nex-web</title>
+    <!-- Bootstrap script: sets window.__NEX__ and opens the SSE event stream. -->
+    <!-- In dev mode Vite proxies /nex.js to the Go backend on port 34116.    -->
+    <script src="/nex.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

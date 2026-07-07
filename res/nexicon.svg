@@ -1,0 +1,47 @@
+<svg version="1.2" baseProfile="tiny-ps" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 364 364" width="364" height="364">
+  <defs>
+<!--Background-->
+    <linearGradient id="iconBgGradient" x1="0" y1="0" x2="364" y2="364" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4A4A4A"/>
+      <stop offset="50%" stop-color="#1F1F1F"/>
+      <stop offset="100%" stop-color="#000000"/>
+    </linearGradient>
+<!--Logo Gradient-->
+    <linearGradient id="nexBlueGradient" x1="0" y1="0" x2="364" y2="311" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#001BFF"/>
+      <stop offset="50%" stop-color="#007BFF"/>
+      <stop offset="100%" stop-color="#00D4FF"/>
+    </linearGradient>
+  </defs>
+<!--Rounded background-->
+  <rect x="0" y="0" width="364" height="364" rx="70" ry="70" fill="url(#iconBgGradient)"/>
+<!--Logo-->
+  <g transform="translate(55,75) scale(0.70)">
+    <path fill="url(#nexBlueGradient)" d="M100 10
+         L126 50
+         L64 139
+         C54 153 54 166 64 180
+         L126 265
+         L100 302
+         L18 188
+         C-6 155 -6 155 18 122
+         Z"/>
+    <path fill="url(#nexBlueGradient)" d="M121 0
+         L252 0
+         C266 0 274 8 283 22
+         L357 134
+         C366 148 366 163 357 177
+         L282 289
+         C273 303 264 311 248 311
+         L121 311
+         L146 270
+         L229 270
+         C239 270 246 266 252 257
+         L313 169
+         C319 160 319 151 313 142
+         L252 54
+         C246 46 239 42 229 42
+         L146 42
+         Z"/>
+  </g>
+</svg>
