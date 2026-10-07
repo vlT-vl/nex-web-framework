@@ -1,5 +1,3 @@
-// Package nex is the public facade of the nex-web framework.
-// Applications import only this package.
 package nex
 
 import (
@@ -9,7 +7,6 @@ import (
 	"nex-web/internal/meta"
 )
 
-// Public type aliases.
 type (
 	App              = app.App
 	Config           = app.Config
@@ -21,14 +18,10 @@ type (
 	Env              = config.Env
 )
 
-// Errorf creates a typed RPC error returned to the frontend.
 var Errorf = core.Errorf
 
-// New creates a new application.
 func New(cfg Config) *App { return app.New(cfg) }
 
-// Framework identity — single source of truth is internal/meta.
-// Override at build time: -ldflags "-X nex-web/internal/meta.Version=x.y.z -X nex-web/internal/meta.Build=R..."
 const Name = meta.Name
 
 func FrameworkVersion() string { return meta.Version }

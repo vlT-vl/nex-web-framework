@@ -1,6 +1,3 @@
-// Package config loads .env files.
-// Variables prefixed with VITE_ are public (sent to frontend via sys.app.info).
-// All other variables are backend-only and never exposed to the frontend.
 package config
 
 import (
@@ -13,7 +10,6 @@ const DefaultPublicPrefix = "VITE_"
 
 type Env struct{}
 
-// Read reads a .env file into a map without mutating process environment.
 func Read(path string) map[string]string {
 	out := map[string]string{}
 	f, err := os.Open(path)
@@ -41,8 +37,6 @@ func Read(path string) map[string]string {
 	return out
 }
 
-// Load reads a .env file (best-effort) and sets variables in the process
-// environment without overwriting existing ones.
 func Load(path string) *Env {
 	for key, val := range Read(path) {
 		if _, ok := os.LookupEnv(key); !ok {
@@ -61,8 +55,6 @@ func (*Env) GetDefault(key, def string) string {
 }
 func (*Env) Has(key string) bool { _, ok := os.LookupEnv(key); return ok }
 
-// Public returns only variables with the given prefix (e.g. "VITE_"),
-// safe to expose to the frontend.
 func (*Env) Public(prefix string) map[string]string {
 	if prefix == "" {
 		prefix = DefaultPublicPrefix

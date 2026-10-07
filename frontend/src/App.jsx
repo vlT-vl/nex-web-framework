@@ -19,10 +19,6 @@ import {
 } from "react-icons/lu";
 import { FiMoon, FiMonitor, FiSun } from "react-icons/fi";
 
-// ── stack badges (framework intro) ───────────────────────────────────────────
-
-// Versions injected by Vite at build time from package.json — never stale.
-/* global __PKG_REACT__, __PKG_REACT_ICONS__, __PKG_VITE__ */
 const stackBadges = [
   { label: "nex-web",     tone: "blue",   resolve: (_, __, fw) => fw ? `${fw.version}${fw.build ? `-${fw.build}` : ""}` : "…" },
   { label: "go",          tone: "cyan",   resolve: (_, osd)    => osd?.runtime?.goVersion?.replace(/^go/, "") ?? "…" },
@@ -30,8 +26,6 @@ const stackBadges = [
   { label: "react-icons", tone: "sky",    value: __PKG_REACT_ICONS__ },
   { label: "vite",        tone: "violet", value: __PKG_VITE__ },
 ];
-
-// ── FileModal (docs + license) ───────────────────────────────────────────────
 
 const docsFile = {
   title: "DOCS.md",
@@ -139,8 +133,6 @@ function FileModal({ open, onClose, onLog, file, kicker, format = "markdown" }) 
   );
 }
 
-// ── sub-components ────────────────────────────────────────────────────────────
-
 function ThemeSwitch({ preference, theme, onChange }) {
   const modes = [
     { id: "system", label: "system", icon: FiMonitor },
@@ -181,7 +173,6 @@ function StatusBar({ info, sess, beat, theme, themePreference, onThemeChange, on
         <button className="docs-trigger" onClick={onOpenLicense}><LuShield size={12} /> license</button>
         <div className="bridge">
           <span>{sess ? `session ${sess.id.slice(0, 8)}` : "connecting…"}</span>
-          {/* key={beat} restarts CSS animation on every tick */}
           <span
             key={beat}
             className={`dot${sess ? " online" : ""}${beat > 0 ? " beat" : ""}`}
@@ -287,7 +278,6 @@ function initialConsoleHeight() {
     const saved = Number(localStorage.getItem(CONSOLE_HEIGHT_KEY));
     if (Number.isFinite(saved) && saved > 0) return clampConsoleHeight(saved);
   } catch {
-    // Keep default height when storage is unavailable.
   }
   return clampConsoleHeight(CONSOLE_DEFAULT_HEIGHT);
 }
@@ -306,7 +296,6 @@ function Console({ lines, onClear }) {
     try {
       localStorage.setItem(CONSOLE_HEIGHT_KEY, String(height));
     } catch {
-      // Height persistence is optional.
     }
   }, [height]);
 
@@ -385,8 +374,6 @@ function Console({ lines, onClear }) {
   );
 }
 
-// ── main app ──────────────────────────────────────────────────────────────────
-
 export default function App() {
   const [info, setInfo] = useState(null);
   const [frameworkInfo, setFrameworkInfo] = useState(null);
@@ -413,7 +400,6 @@ export default function App() {
 
     const offTick = nex.on("tick", () => setBeat((b) => b + 1));
 
-    // SSE disconnect/reconnect — survives dev-server restarts
     const offDisconnected = nex.on("disconnected", () => setSess(null));
     const offConnected = nex.on("connected", () => {
       nex.session().then(setSess).catch(() => {});
@@ -421,7 +407,6 @@ export default function App() {
       nex.framework.info().then(setFrameworkInfo).catch(() => {});
     });
 
-    // sys.app.reload → full page reload triggered from backend
     const offReload = nex.on("reload", () => window.location.reload());
 
     return () => { offTick(); offDisconnected(); offConnected(); offReload(); };
@@ -437,8 +422,6 @@ export default function App() {
     });
   }, [themePreference]);
 
-  // Apply title and favicon from .env (VITE_APP_TITLE, VITE_APP_ICON).
-  // Both are read at runtime from app.info().public so no rebuild is needed.
   useEffect(() => {
     if (!info) return;
     const pub = info.public ?? {};
@@ -461,18 +444,14 @@ export default function App() {
     setTheme(applied.theme);
   }
 
-  // Interactive demos — covers all APIs; destructive ones use temp paths or reversible ops
   const demos = useMemo(
     () => ({
-      // framework
       "sys.framework.info":  () => nex.framework.info(),
       "sys.framework.stack": () => nex.framework.stack(),
 
-      // app
       "sys.app.info":   () => nex.app.info(),
       "sys.app.reload": () => nex.app.reload(),
 
-      // os
       "sys.os.info":    () => nex.os.info(),
       "sys.os.host":    () => nex.os.host(),
       "sys.os.user":    () => nex.os.user(),
@@ -483,12 +462,10 @@ export default function App() {
       "sys.os.memory":  () => nex.os.memory(),
       "sys.os.time":    () => nex.os.time(),
 
-      // env
       "sys.env.paths": () => nex.env.paths(),
       "sys.env.get":   () => nex.env.get(osData?.os === "windows" ? "USERPROFILE" : "HOME"),
       "sys.env.list":  () => nex.env.list("VITE_"),
 
-      // log — all levels, each writes to backend terminal
       "sys.log.print":   () => nex.logger.print("nex-web demo: plain log"),
       "sys.log.trace":   () => nex.logger.trace("nex-web demo: trace"),
       "sys.log.debug":   () => nex.logger.debug("nex-web demo: debug"),
@@ -496,7 +473,6 @@ export default function App() {
       "sys.log.warning": () => nex.logger.warning("nex-web demo: warning"),
       "sys.log.error":   () => nex.logger.error("nex-web demo: error"),
 
-      // shell
       "sys.shell.exec":  () =>
         nex.shell.exec(osData?.os === "windows" ? "ver" : "uname -a", { timeoutMs: 5000 }),
       "sys.shell.run":   () =>
@@ -504,7 +480,6 @@ export default function App() {
       "sys.shell.start": () =>
         nex.shell.start(osData?.os === "windows" ? "timeout /T 2 /NOBREAK" : "sleep 2"),
 
-      // fs — read-only
       "sys.fs.list":   () => nex.fs.list(osData?.home ?? "/tmp"),
       "sys.fs.exists": () => nex.fs.exists(osData?.home ?? "/tmp"),
       "sys.fs.stat":   () => nex.fs.stat(osData?.home ?? "/tmp"),
@@ -516,7 +491,6 @@ export default function App() {
       "sys.fs.abs":    () => nex.fs.abs("."),
       "sys.fs.glob":   () => nex.fs.glob((osData?.home ?? "/tmp") + "/*"),
 
-      // fs — write to temp (safe, isolated)
       "sys.fs.temp":   () => nex.fs.temp({ prefix: "nex-demo-", isDir: false }),
       "sys.fs.mkdir":  () => nex.fs.mkdir((osData?.paths?.temp ?? "/tmp") + "/nex-demo"),
       "sys.fs.write":  () => nex.fs.write(
@@ -530,23 +504,17 @@ export default function App() {
       ),
       "sys.fs.watch":  () => nex.fs.watch(osData?.home ?? "/tmp", { intervalMs: 2000 }),
 
-      // kv
       "sys.kv.set":    () => nex.kv.set("nex-web.demo", { ts: Date.now(), msg: "hello from UI" }),
       "sys.kv.get":    () => nex.kv.get("nex-web.demo"),
       "sys.kv.list":   () => nex.kv.list(),
       "sys.kv.delete": () => nex.kv.delete("nex-web.demo"),
       "sys.kv.clear":  () => nex.kv.clear(),
 
-      // http — HttpFetchRow handles sys.http.fetch inline
-
-      // net
       "sys.net.resolve": () => nex.netutil.resolve("google.com"),
       "sys.net.port":    () => nex.netutil.port({ host: "google.com", port: 443 }),
 
-      // proc
       "sys.proc.list": () => nex.proc.list(),
 
-      // security
       "sys.security.capabilities": () => nex.security.capabilities(),
     }),
     [osData]
@@ -601,7 +569,6 @@ export default function App() {
       <main className="wrap">
         <NexWebLogo />
 
-        {/* Framework intro */}
         <section className="section">
           <div className="framework-note">
             <div>
@@ -629,7 +596,6 @@ export default function App() {
           </div>
         </section>
 
-        {/* App + framework info */}
         <section className="section">
           <span className="label"><LuInfo size={13} /> App</span>
           <div className="panel">
@@ -662,7 +628,6 @@ export default function App() {
           </div>
         </section>
 
-        {/* Public env vars */}
         <section className="section">
           <span className="label"><LuSettings size={13} /> Public env (VITE_*)</span>
           <div className="panel">
@@ -686,13 +651,11 @@ export default function App() {
           </div>
         </section>
 
-        {/* API explorer */}
         <section className="section">
           <span className="label"><LuCode size={13} /> Available APIs</span>
           <ApiExplorer demos={demos} onRun={onRun} />
         </section>
 
-        {/* Console */}
         <section className="section console-dock">
           <Console lines={lines} onClear={() => setLines([])} />
         </section>

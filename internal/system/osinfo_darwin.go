@@ -1,20 +1,5 @@
 //go:build darwin
 
-// Darwin implementations of the platform-specific OS-info helpers.
-// Values come from the SystemVersion.plist file, the stdlib syscall package's
-// Sysctl/SysctlUint32/Getfsstat wrappers, or os.Hostname — no subprocess is
-// spawned (no sw_vers, sysctl(8), uname, ps, or df).
-//
-// Three data points are intentionally reported as unsupported rather than
-// decoded from raw sysctl/Mach structs or silently truncated: boot time
-// (kern.boottime is a binary timeval, not a NUL-terminated string), total
-// physical memory (hw.memsize is a 64-bit sysctl and the stdlib has no
-// SysctlUint64 — only SysctlUint32, which would wrap/truncate on any machine
-// with >4GB RAM), and the full process table (kern.proc.all is the
-// undocumented, version-sensitive kinfo_proc struct). All three would require
-// hand-decoding a byte layout that cannot be verified without a real macOS
-// build/run cycle — getting it wrong risks a crash via unsafe.Pointer misuse,
-// a worse outcome than the subprocess it would replace.
 package system
 
 import (
@@ -34,7 +19,6 @@ func osVersionInfo() string {
 	return version
 }
 
-// macSystemVersion reads the same plist `sw_vers` reads, without a subprocess.
 func macSystemVersion() (version, build string) {
 	data, err := os.ReadFile("/System/Library/CoreServices/SystemVersion.plist")
 	if err != nil {
@@ -44,8 +28,6 @@ func macSystemVersion() (version, build string) {
 	return kv["ProductVersion"], kv["ProductBuildVersion"]
 }
 
-// parsePlistStringDict does a minimal parse of a flat <dict> of <key>/<string>
-// (or <integer>) pairs — exactly the shape of Apple's SystemVersion.plist.
 func parsePlistStringDict(data []byte) map[string]string {
 	out := map[string]string{}
 	dec := xml.NewDecoder(bytes.NewReader(data))
@@ -123,9 +105,6 @@ func platformCPUInfo() map[string]any {
 	return out
 }
 
-// platformUptimeInfo: kern.boottime is a binary struct timeval, not decodable
-// via the stdlib's string-oriented Sysctl helper. Reported as unsupported
-// rather than risking an unverified raw-struct decode.
 func platformUptimeInfo() map[string]any {
 	return map[string]any{
 		"supported": false,
@@ -133,13 +112,6 @@ func platformUptimeInfo() map[string]any {
 	}
 }
 
-// platformMemoryInfo: hw.memsize is a 64-bit sysctl. The stdlib syscall
-// package only exposes Sysctl (NUL-terminated C string — wrong for a binary
-// uint64 and would silently truncate/garble the value) and SysctlUint32
-// (would truncate to 32 bits on any machine with >4GB RAM, i.e. virtually
-// all of them). There is no SysctlUint64 in the stdlib (only in
-// golang.org/x/sys, an external dependency). Reported as unsupported rather
-// than a silently wrong value.
 func platformMemoryInfo() map[string]any {
 	return map[string]any{
 		"supported": false,
@@ -151,13 +123,8 @@ func platformMemoryInfo() map[string]any {
 	}
 }
 
-// mntNowait is BSD's MNT_NOWAIT flag (sys/mount.h) — use cached filesystem
-// statistics instead of forcing each mount to refresh synchronously. Not
-// exported by the stdlib syscall package, so the literal value is used.
 const mntNowait = 2
 
-// platformDiskInfo enumerates mounted filesystems via getfsstat(2) (stdlib
-// syscall.Getfsstat), which returns usage stats directly — no `df`.
 func platformDiskInfo() []map[string]any {
 	n, err := syscall.Getfsstat(nil, mntNowait)
 	if err != nil || n <= 0 {
@@ -190,9 +157,6 @@ func platformDiskInfo() []map[string]any {
 	return out
 }
 
-// platformProcList: see the package-level note above — kern.proc.all decoding
-// is intentionally not attempted. Reported as unsupported (empty, not an
-// error) so callers can distinguish "no processes" from "not implemented".
 func platformProcList() []map[string]any { return []map[string]any{} }
 
 func platformProcListSupported() bool { return false }

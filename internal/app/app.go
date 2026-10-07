@@ -1,6 +1,3 @@
-// Package app wires together an HTTP server, session security, RPC dispatch,
-// and a Server-Sent Events bridge for backend-to-frontend events.
-// No native webview or CGO dependency.
 package app
 
 import (
@@ -27,28 +24,23 @@ import (
 	"nex-web/internal/system"
 )
 
-// Config configures the web application.
-// Name/Version/Build/Author describe the *app*, not the framework.
-// Framework identity is available via sys.framework.info / sys.framework.stack.
 type Config struct {
-	Name    string // your app name (default "nex-web")
-	Version string // your app version, e.g. "1.0.0"
-	Build   string // your app build tag, e.g. "B20260626" (optional)
-	Author  string // your app author (optional)
+	Name    string
+	Version string
+	Build   string
+	Author  string
 
 	Debug          bool
 	Dist           embed.FS
-	DistDir        string        // subdirectory inside Dist (default "frontend/dist")
-	Addr           string        // backend listen addr, ":0" = OS-assigned random port (default)
-	PublicAddr     string        // public proxy addr, e.g. ":3000" — empty disables the proxy
-	IdleTimeout    time.Duration // session idle timeout (default 12h)
-	EnvFile        string        // default ".env"
-	PublicPrefix   string        // default "VITE_"
-	AllowedOrigins []string      // if non-empty, restrict allowed CORS origins
-	FSRoot         string        // if non-empty, all filesystem API calls are jailed to this directory
+	DistDir        string
+	Addr           string
+	PublicAddr     string
+	IdleTimeout    time.Duration
+	EnvFile        string
+	PublicPrefix   string
+	AllowedOrigins []string
+	FSRoot         string
 
-	// SecurityPolicy and focused hooks are optional. Nil means allow, preserving
-	// the framework's trusted-frontend default.
 	SecurityPolicy     core.SecurityPolicy
 	OnSecurityDecision func(*core.Context, core.SecurityDecision) error
 	OnShellCommand     func(*core.Context, core.SecurityDecision) error
@@ -66,23 +58,21 @@ type sseEvent struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-// App is a running nex-web application.
 type App struct {
 	cfg      Config
 	sessions *session.Manager
-	token    string // session token — delivered to the browser only via SSE, never in a file
+	token    string
 	handlers map[string]core.HandlerFunc
 	env      *config.Env
 	quit     context.CancelFunc
 
 	nonceMu sync.Mutex
-	nonces  map[string]time.Time // one-time nonces: nonce → expiry (60 s)
+	nonces  map[string]time.Time
 
 	sseMu   sync.RWMutex
 	sseSubs map[chan sseEvent]struct{}
 }
 
-// New creates the application, loads .env, and registers all sys.* handlers.
 func New(cfg Config) *App {
 	if cfg.Name == "" {
 		cfg.Name = "nex-web"
@@ -117,12 +107,10 @@ func New(cfg Config) *App {
 	return a
 }
 
-// Register implements core.Registrar (internal use, no namespace guard).
 func (a *App) Register(method string, fn core.HandlerFunc) {
 	a.handlers[method] = fn
 }
 
-// Handle registers an application handler. The "sys." namespace is reserved.
 func (a *App) Handle(method string, fn core.HandlerFunc) {
 	if strings.HasPrefix(method, "sys.") {
 		panic("nex-web: 'sys.' namespace is reserved")
@@ -130,13 +118,8 @@ func (a *App) Handle(method string, fn core.HandlerFunc) {
 	a.handlers[method] = fn
 }
 
-// Env returns the loaded environment (for reading backend-only variables).
 func (a *App) Env() *config.Env { return a.env }
 
-// --- core.Host ---------------------------------------------------------------
-
-// OnMain calls fn directly. In the web variant there is no single-threaded
-// UI loop, so all goroutines are equally valid callers.
 func (a *App) OnMain(fn func()) { fn() }
 
 func (a *App) Authorize(c *core.Context, d core.SecurityDecision) error {
@@ -190,8 +173,6 @@ func (a *App) Authorize(c *core.Context, d core.SecurityDecision) error {
 	return nil
 }
 
-// Emit broadcasts an event to all connected SSE clients.
-// The frontend receives it as a CustomEvent "nex:<event>" with the payload as detail.
 func (a *App) Emit(event string, payload any) {
 	b, err := json.Marshal(payload)
 	if err != nil {
@@ -203,21 +184,17 @@ func (a *App) Emit(event string, payload any) {
 	for ch := range a.sseSubs {
 		select {
 		case ch <- ev:
-		default: // drop if subscriber is slow
+		default:
 		}
 	}
 }
 
-// Quit initiates a graceful server shutdown.
 func (a *App) Quit() {
 	if a.quit != nil {
 		a.quit()
 	}
 }
 
-// --- sys.app.info / sys.framework.info ---------------------------------------
-
-// sysAppInfo returns app-level metadata set by the developer via Config.
 func (a *App) sysAppInfo(_ *core.Context, _ json.RawMessage) (any, error) {
 	return map[string]any{
 		"name":    a.cfg.Name,
@@ -228,22 +205,14 @@ func (a *App) sysAppInfo(_ *core.Context, _ json.RawMessage) (any, error) {
 	}, nil
 }
 
-// sysFrameworkInfo returns nex-web framework identity from internal/meta.
-// The response includes a nested "stack" field with Go version and build settings.
 func (a *App) sysFrameworkInfo(_ *core.Context, _ json.RawMessage) (any, error) {
 	return meta.Info(), nil
 }
 
-// sysFrameworkStack returns the resolved runtime stack (Go version, build settings, deps).
 func (a *App) sysFrameworkStack(_ *core.Context, _ json.RawMessage) (any, error) {
 	return meta.Stack(), nil
 }
 
-// --- Run ---------------------------------------------------------------------
-
-// Run starts the HTTP backend on a random (or configured) port, optionally
-// starts a public proxy on PublicAddr (default :3000), and blocks until
-// Quit() is called or a fatal server error occurs.
 func (a *App) Run() error {
 	sess, err := a.sessions.Create()
 	if err != nil {
@@ -261,10 +230,10 @@ func (a *App) Run() error {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/nex.js", a.handleNexJS)
-	mux.HandleFunc("/api/token", a.handleToken) // unauthenticated — returns a one-time nonce
+	mux.HandleFunc("/api/token", a.handleToken)
 	mux.Handle("/api/rpc", a.secure(http.HandlerFunc(a.handleRPC)))
 	mux.Handle("/api/session", a.secure(http.HandlerFunc(a.handleSession)))
-	mux.HandleFunc("/api/events", a.handleSSE) // auth handled inline: nonce or session token
+	mux.HandleFunc("/api/events", a.handleSSE)
 	mux.Handle("/", spaHandler(dist))
 
 	ln, err := net.Listen("tcp", a.cfg.Addr)
@@ -300,12 +269,9 @@ func (a *App) Run() error {
 		}
 	}()
 
-	// Public proxy: forwards :PublicAddr → backend random port.
-	// This allows clients to always connect to a well-known port (3000)
-	// while the internal backend uses an unpredictable port.
 	if pubLn != nil {
 		proxy := httputil.NewSingleHostReverseProxy(pubTarget)
-		proxy.FlushInterval = -1 // flush immediately for SSE streaming
+		proxy.FlushInterval = -1
 		log.Printf("nex-web listening on http://localhost%s", a.cfg.PublicAddr)
 		pubSrv := &http.Server{Handler: proxy}
 		go func() {
@@ -329,11 +295,6 @@ func (a *App) Run() error {
 	}
 }
 
-// --- Nonce helpers -----------------------------------------------------------
-
-// createNonce generates a single-use 16-byte hex nonce valid for 60 s.
-// The nonce lets the browser open SSE without carrying the real session token
-// in any file or URL that could be logged or cached.
 func (a *App) createNonce() (string, error) {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
@@ -343,7 +304,7 @@ func (a *App) createNonce() (string, error) {
 	expiry := time.Now().Add(60 * time.Second)
 	a.nonceMu.Lock()
 	now := time.Now()
-	for n, exp := range a.nonces { // sweep expired entries
+	for n, exp := range a.nonces {
 		if now.After(exp) {
 			delete(a.nonces, n)
 		}
@@ -353,7 +314,6 @@ func (a *App) createNonce() (string, error) {
 	return nonce, nil
 }
 
-// consumeNonce validates and atomically deletes a nonce (one-time use).
 func (a *App) consumeNonce(nonce string) bool {
 	if nonce == "" {
 		return false
@@ -368,12 +328,6 @@ func (a *App) consumeNonce(nonce string) bool {
 	return time.Now().Before(exp)
 }
 
-// --- /nex.js + /api/token ----------------------------------------------------
-
-// handleToken returns a fresh single-use nonce for SSE authentication.
-// The nonce alone grants no access — it only authorises opening the SSE stream,
-// which then delivers the real session token as the connected event payload.
-// Unauthenticated callers get a harmless nonce, not the session token.
 func (a *App) handleToken(w http.ResponseWriter, _ *http.Request) {
 	nonce, err := a.createNonce()
 	if err != nil {
@@ -384,12 +338,6 @@ func (a *App) handleToken(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"nonce": nonce})
 }
 
-// handleNexJS serves the bootstrap script.
-// It embeds a per-request one-time nonce (not the session token).
-// The real token is delivered by the server inside the first SSE "connected"
-// event and stored in window.__NEX__.token — it never appears in a file.
-// On SSE disconnect the script calls /api/token for a fresh nonce and
-// reopens the stream, recovering from server restarts automatically.
 func (a *App) handleNexJS(w http.ResponseWriter, _ *http.Request) {
 	nonce, err := a.createNonce()
 	if err != nil {
@@ -430,9 +378,6 @@ func (a *App) handleNexJS(w http.ResponseWriter, _ *http.Request) {
 })();`, nonce)
 }
 
-// --- Security middleware -----------------------------------------------------
-
-// secure validates the X-nex-Token header and optionally checks CORS origin.
 func (a *App) secure(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !a.originAllowed(r) {
@@ -447,23 +392,6 @@ func (a *App) secure(next http.Handler) http.Handler {
 	})
 }
 
-// originAllowed decides whether a browser-originated request may reach a
-// sensitive endpoint. Requests with no Origin header (non-browser callers:
-// curl, server-to-server, same-machine tooling) are always allowed — Origin
-// is a browser-enforced header, so its absence is not itself cross-origin
-// browser traffic.
-//
-// If Config.AllowedOrigins is set, it is the sole authority (explicit
-// override). Otherwise the default allows any loopback Origin (localhost,
-// 127.0.0.1, ::1) regardless of port, and rejects everything else. Checking
-// the Origin's own host — rather than comparing it against the request's
-// Host header — is deliberate: reverse proxies (the public :3000 proxy, the
-// Vite dev proxy) do not reliably preserve the original Host header when
-// forwarding, so an Origin-vs-Host comparison breaks depending on proxy
-// configuration. A loopback Origin can only come from a page served from the
-// same machine, which is exactly the local-first / dev-proxy scenario this
-// framework targets; a real remote attacker's page never has one. Anything
-// non-loopback (a real public deployment) must opt in via AllowedOrigins.
 func (a *App) originAllowed(r *http.Request) bool {
 	o := r.Header.Get("Origin")
 	if o == "" {
@@ -484,8 +412,6 @@ func (a *App) originAllowed(r *http.Request) bool {
 	return isLoopbackHost(origin.Hostname())
 }
 
-// isLoopbackHost reports whether host (an Origin hostname, no port) refers to
-// the local machine: "localhost" or a loopback IP (127.0.0.0/8, ::1).
 func isLoopbackHost(host string) bool {
 	if strings.EqualFold(host, "localhost") {
 		return true
@@ -493,8 +419,6 @@ func isLoopbackHost(host string) bool {
 	ip := net.ParseIP(host)
 	return ip != nil && ip.IsLoopback()
 }
-
-// --- Handlers ----------------------------------------------------------------
 
 func (a *App) handleSession(w http.ResponseWriter, r *http.Request) {
 	sess, _ := a.sessions.Validate(r.Header.Get("X-nex-Token"))
@@ -513,7 +437,7 @@ func (a *App) handleRPC(w http.ResponseWriter, r *http.Request) {
 		writeRPCErr(w, "method_not_allowed", "use POST")
 		return
 	}
-	r.Body = http.MaxBytesReader(w, r.Body, 8<<20) // 8 MiB limit
+	r.Body = http.MaxBytesReader(w, r.Body, 8<<20)
 	var req struct {
 		Method string          `json:"method"`
 		Params json.RawMessage `json:"params"`
@@ -543,11 +467,6 @@ func (a *App) handleRPC(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"result": result})
 }
 
-// handleSSE streams backend events to the browser via Server-Sent Events.
-// Auth is handled inline: accepts either a one-time ?nonce= (first connect,
-// issued by /nex.js) or a ?token= session token (reconnect path).
-// When a nonce is consumed the real session token is delivered in the
-// "connected" event payload so the browser can use it for subsequent RPC calls.
 func (a *App) handleSSE(w http.ResponseWriter, r *http.Request) {
 	if !a.originAllowed(r) {
 		http.Error(w, "bad origin", http.StatusForbidden)
@@ -560,19 +479,17 @@ func (a *App) handleSSE(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Auth: always via one-time nonce (prevents the real token from appearing in URLs or access logs).
-	// The nonce is issued by /nex.js (first connect) or /api/token (reconnect).
 	nonce := r.URL.Query().Get("nonce")
 	if !a.consumeNonce(nonce) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	deliverToken := a.token // send real token inside the connected event
+	deliverToken := a.token
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("X-Accel-Buffering", "no") // disable nginx buffering
+	w.Header().Set("X-Accel-Buffering", "no")
 
 	ch := make(chan sseEvent, 16)
 	a.sseMu.Lock()
@@ -584,7 +501,6 @@ func (a *App) handleSSE(w http.ResponseWriter, r *http.Request) {
 		a.sseMu.Unlock()
 	}()
 
-	// Send connected event with the real token in the payload.
 	tokenJSON, _ := json.Marshal(deliverToken)
 	fmt.Fprintf(w, "data: {\"name\":\"connected\",\"payload\":{\"token\":%s}}\n\n", tokenJSON)
 	flusher.Flush()
@@ -600,8 +516,6 @@ func (a *App) handleSSE(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 }
-
-// --- Helpers -----------------------------------------------------------------
 
 func spaHandler(dist fs.FS) http.Handler {
 	fs_ := http.FileServer(http.FS(dist))

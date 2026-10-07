@@ -56,7 +56,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── topbar ── */
 .topbar {
   position: sticky; top: 0; z-index: 10;
   display: flex; align-items: center; gap: 16px;
@@ -127,7 +126,6 @@ body {
 }
 @media (prefers-reduced-motion: reduce) { .dot.beat { animation: none; } }
 
-/* ── layout ── */
 .wrap { max-width: 1440px; margin: 0 auto; padding: 24px 32px 240px; }
 .section { margin-top: 28px; }
 .label {
@@ -215,7 +213,6 @@ body {
   font-size: 11px;
 }
 
-/* ── panel ── */
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -223,7 +220,6 @@ body {
   overflow: hidden;
 }
 
-/* key/value grid */
 .kv { display: grid; grid-template-columns: 150px 1fr; }
 .kv > div {
   padding: 9px 14px;
@@ -233,7 +229,6 @@ body {
 .kv > div:nth-child(-n+2) { border-top: none; }
 .kv .k { color: var(--muted); }
 
-/* env grid */
 .env-grid { padding: 4px 14px 10px; }
 .env-row {
   display: flex; gap: 12px; padding: 5px 0;
@@ -245,7 +240,6 @@ body {
 .env-val { color: var(--ink); word-break: break-all; }
 .note { color: var(--muted); font-size: 12px; padding: 0 14px 10px; }
 
-/* ── api explorer ── */
 .group { border-top: 1px solid var(--line); }
 .group:first-child { border-top: none; }
 .group-head {
@@ -283,7 +277,6 @@ body {
   cursor: pointer; white-space: nowrap; user-select: none;
 }
 
-/* ── terminal console ── */
 .console-dock {
   position: fixed;
   left: 50%;
@@ -446,7 +439,6 @@ body {
   }
 }
 
-/* ── docs trigger button ── */
 .docs-trigger {
   height: 24px;
   padding: 0 10px;
@@ -463,7 +455,6 @@ body {
 .docs-trigger:hover { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .docs-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
-/* ── docs modal (identico al framework desktop) ── */
 .modal-layer {
   position: fixed;
   inset: 0;
@@ -653,7 +644,6 @@ body {
 .docs-content img { max-width: 100%; height: auto; }
 .docs-content img[src*="img.shields.io"] { max-width: none; height: 20px; vertical-align: middle; }
 
-/* ── api risk badge ─────────────────────────────────────────────────────── */
 .api-risk {
   min-width: 74px;
   padding: 2px 6px;
@@ -669,7 +659,6 @@ body {
 .api-risk.user       { color: var(--accent);  background: var(--accent-soft); }
 .api-risk.privileged { color: var(--err);     background: var(--err-soft); }
 
-/* ── react-icons: flex alignment ─────────────────────────────────────────── */
 .label             { display: flex; align-items: center; gap: 5px; }
 .group-head        { display: flex; align-items: center; gap: 6px; }
 .btn               { display: inline-flex; align-items: center; gap: 4px; }

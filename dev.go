@@ -1,10 +1,5 @@
 //go:build ignore
 
-// Development runner for nex-web.
-// Usage: go run dev.go
-//
-// Starts Vite HMR then runs the Go server with -tags dev (daemon disabled).
-// The Go server listens on 127.0.0.1:34116; Vite proxies /api and /nex.js to it.
 package main
 
 import (
@@ -49,16 +44,11 @@ func doDev() error {
 		return err
 	}
 
-	// Start the Go backend *before* Vite. `go run` has to compile the package
-	// first, which takes a moment — if Vite (and the browser) come up first,
-	// every /api/* call proxies straight into ECONNREFUSED (surfaced to the
-	// browser as HTTP 502) until the backend finishes starting. Waiting for
-	// the backend to actually accept connections here removes that race.
 	appCmd := exec.Command("go", "run", "-tags", "dev", mainPkg)
 	appCmd.Env = append(os.Environ(),
 		"CGO_ENABLED=0",
 		"NEXWEB_ADDR="+apiAddr,
-		"NEXWEB_PUBLIC_ADDR=", // disable public proxy in dev mode (Vite handles it)
+		"NEXWEB_PUBLIC_ADDR=",
 	)
 	appCmd.Stdout = os.Stdout
 	appCmd.Stderr = os.Stderr
@@ -86,20 +76,15 @@ func doDev() error {
 
 	select {
 	case <-sig:
-		// Ctrl+C or kill from console: bring down backend then Vite
 		_ = appCmd.Process.Kill()
 		<-done
 	case <-done:
-		// backend exited on its own (e.g. app.quit())
 	}
 
 	stopVite()
 	return nil
 }
 
-// waitForAddr polls addr until it accepts TCP connections, the backend
-// process exits early (compile error, panic, port conflict — reported via
-// done), or timeout elapses.
 func waitForAddr(addr string, timeout time.Duration, done <-chan error) error {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {

@@ -28,3 +28,6 @@ frontend/node_modules/
 
 # Handoff
 handoff.md
+
+# Clone guide (local-only, never part of a cloned app's repo either)
+CLONE.md

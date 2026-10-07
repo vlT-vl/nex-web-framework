@@ -25,12 +25,10 @@ func main() {
 	log.Printf("%s %s (%s)", nexweb.Name, nexweb.FrameworkVersion(), nexweb.FrameworkBuild())
 
 	a := nexweb.New(nexweb.Config{
-		// App identity — read from .env so no recompile is needed to change them.
-		Name:    envDefault("NEXWEB_APP_NAME", "nex-web-template"),
-		Version: envDefault("NEXWEB_APP_VERSION", "dev"),
-		Build:   envDefault("NEXWEB_APP_BUILD", ""),
-		Author:  envDefault("NEXWEB_APP_AUTHOR", ""),
-		// Framework + infrastructure config.
+		Name:       envDefault("NEXWEB_APP_NAME", "nex-web-template"),
+		Version:    envDefault("NEXWEB_APP_VERSION", "dev"),
+		Build:      envDefault("NEXWEB_APP_BUILD", ""),
+		Author:     envDefault("NEXWEB_APP_AUTHOR", ""),
 		Dist:       distFS,
 		DistDir:    "frontend/dist",
 		Addr:       envDefault("NEXWEB_ADDR", ":0"),
@@ -66,8 +64,6 @@ func main() {
 	}
 }
 
-// envDefault returns the env variable value if set (even to ""),
-// otherwise returns fallback. Setting a var to "" explicitly disables features.
 func envDefault(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok {
 		return v

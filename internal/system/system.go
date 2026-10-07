@@ -1,6 +1,3 @@
-// Package system registers web-compatible sys.* RPC handlers.
-// Desktop-only handlers (native dialogs, OS notifications, window control)
-// are intentionally absent from this web variant.
 package system
 
 import (
@@ -41,15 +38,8 @@ var (
 
 const kvFile = ".nex-kv.json"
 
-// ---- Security globals -------------------------------------------------------
-
-// sysfsRoot is the optional filesystem jail root set by Register.
-// Empty means unrestricted (default when FSRoot is not configured).
 var sysfsRoot string
 
-// checkPath validates p against the configured FSRoot jail.
-// When FSRoot is empty the path is returned unchanged.
-// Symlinks are resolved where possible to prevent directory-traversal escapes.
 func checkPath(p string) (string, error) {
 	if sysfsRoot == "" {
 		return p, nil
@@ -63,8 +53,6 @@ func checkPath(p string) (string, error) {
 		if !os.IsNotExist(err) {
 			return "", core.Errorf("fs", "cannot resolve path")
 		}
-		// File doesn't exist yet: resolve symlinks on the parent directory so a
-		// symlink inside FSRoot pointing outside cannot be used as a write target.
 		resolvedParent, parentErr := filepath.EvalSymlinks(filepath.Dir(abs))
 		if parentErr == nil {
 			resolved = filepath.Join(resolvedParent, filepath.Base(abs))
@@ -79,8 +67,6 @@ func checkPath(p string) (string, error) {
 	return abs, nil
 }
 
-// checkGlobBase validates that the concrete directory portion of a glob pattern
-// is within the FSRoot jail.
 func checkGlobBase(pattern string) error {
 	if sysfsRoot == "" {
 		return nil
@@ -108,7 +94,6 @@ func Register(reg core.Registrar, fsRoot string) {
 			sysfsRoot = filepath.Clean(fsRoot)
 		}
 	}
-	// OS info
 	reg.Register("sys.os.info", osInfo)
 	reg.Register("sys.os.host", osHost)
 	reg.Register("sys.os.user", osUser)
@@ -120,7 +105,6 @@ func Register(reg core.Registrar, fsRoot string) {
 	reg.Register("sys.os.time", osTime)
 	reg.Register("sys.env.paths", envPaths)
 
-	// Logging (frontend → backend log output)
 	reg.Register("sys.log.print", logPrint)
 	reg.Register("sys.log.trace", logLevel("trace"))
 	reg.Register("sys.log.debug", logLevel("debug"))
@@ -128,18 +112,14 @@ func Register(reg core.Registrar, fsRoot string) {
 	reg.Register("sys.log.warning", logLevel("warning"))
 	reg.Register("sys.log.error", logLevel("error"))
 
-	// Shell
 	reg.Register("sys.shell.exec", shellExec)
 	reg.Register("sys.shell.run", shellExec)
 	reg.Register("sys.shell.start", shellStart)
 
-	// HTTP proxy
 	reg.Register("sys.http.fetch", httpFetch)
 
-	// Env
 	reg.Register("sys.env.get", envGet)
 
-	// Filesystem
 	reg.Register("sys.fs.read", fsRead)
 	reg.Register("sys.fs.write", fsWrite)
 	reg.Register("sys.fs.list", fsList)
@@ -152,39 +132,29 @@ func Register(reg core.Registrar, fsRoot string) {
 	reg.Register("sys.fs.watch", fsWatch)
 	reg.Register("sys.fs.unwatch", fsUnwatch)
 
-	// KV store (persistent JSON file)
 	reg.Register("sys.kv.get", kvGet)
 	reg.Register("sys.kv.set", kvSet)
 	reg.Register("sys.kv.delete", kvDelete)
 	reg.Register("sys.kv.list", kvList)
 
-	// Network
 	reg.Register("sys.net.resolve", netResolve)
 	reg.Register("sys.net.port", netPort)
 
-	// App
 	reg.Register("sys.app.quit", appQuit)
 	reg.Register("sys.app.reload", appReload)
 
-	// Filesystem extras
 	reg.Register("sys.fs.glob", fsGlob)
 	reg.Register("sys.fs.abs", fsAbs)
 	reg.Register("sys.fs.temp", fsTemp)
 
-	// Process list
 	reg.Register("sys.proc.list", procList)
 
-	// KV extras
 	reg.Register("sys.kv.clear", kvClear)
 
-	// Env list
 	reg.Register("sys.env.list", envList)
 
-	// Security/capability introspection
 	reg.Register("sys.security.capabilities", securityCapabilities)
 }
-
-// ---- OS Info ----------------------------------------------------------------
 
 func osInfo(_ *core.Context, _ json.RawMessage) (any, error) {
 	host := hostInfo()
@@ -200,12 +170,11 @@ func osInfo(_ *core.Context, _ json.RawMessage) (any, error) {
 		"memory":      memoryInfo(),
 		"time":        timeInfo(),
 		"environment": environmentInfo(),
-		// Compact fields kept for backward compatibility.
-		"os":       runtime.GOOS,
-		"arch":     runtime.GOARCH,
-		"home":     paths["home"],
-		"hostname": host["hostname"],
-		"cpus":     runtime.NumCPU(),
+		"os":          runtime.GOOS,
+		"arch":        runtime.GOARCH,
+		"home":        paths["home"],
+		"hostname":    host["hostname"],
+		"cpus":        runtime.NumCPU(),
 	}, nil
 }
 
@@ -244,8 +213,6 @@ func osTime(_ *core.Context, _ json.RawMessage) (any, error) {
 func envPaths(_ *core.Context, _ json.RawMessage) (any, error) {
 	return pathsInfo(), nil
 }
-
-// ---- Info helpers -----------------------------------------------------------
 
 func hostInfo() map[string]any {
 	home, _ := os.UserHomeDir()
@@ -435,14 +402,6 @@ func memStatsMap(m runtime.MemStats) map[string]any {
 	}
 }
 
-// ---- Utility helpers --------------------------------------------------------
-//
-// Platform-specific OS-info gathering (kernel, platform, CPU, uptime, memory,
-// disks, process list) lives in osinfo_linux.go / osinfo_darwin.go /
-// osinfo_windows.go — pure Go/syscall, no subprocess. Shared helpers used by
-// those files (charsToString, percentOf, durationString, unescapeMountField)
-// live in osinfo_common.go.
-
 func readKeyValueFile(path, sep string) map[string]string {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -462,8 +421,6 @@ func readKeyValueFile(path, sep string) map[string]string {
 	}
 	return out
 }
-
-// ---- Logging ----------------------------------------------------------------
 
 func logPrint(_ *core.Context, params json.RawMessage) (any, error) {
 	var p struct {
@@ -492,8 +449,6 @@ func logLevel(level string) core.HandlerFunc {
 		return map[string]any{"ok": true, "level": level}, nil
 	}
 }
-
-// ---- Shell ------------------------------------------------------------------
 
 func shellExec(c *core.Context, params json.RawMessage) (any, error) {
 	var p struct {
@@ -596,8 +551,6 @@ func shellStart(c *core.Context, params json.RawMessage) (any, error) {
 		return nil, core.Errorf("shell", "%v", err)
 	}
 	pid := cmd.Process.Pid
-	// Reap the detached child in the background instead of Release(), which
-	// leaves an unreaped zombie on Unix once the process exits.
 	go func() { _ = cmd.Wait() }()
 	return map[string]any{
 		"ok":      true,
@@ -617,8 +570,6 @@ func nativeShellCommand(command string) (string, []string, string) {
 	}
 	return "/bin/sh", []string{"-c", command}, "sh"
 }
-
-// ---- Filesystem -------------------------------------------------------------
 
 func fsRead(c *core.Context, params json.RawMessage) (any, error) {
 	var p struct {
@@ -853,8 +804,6 @@ func fsRename(c *core.Context, params json.RawMessage) (any, error) {
 	return map[string]any{"ok": true}, nil
 }
 
-// ---- HTTP fetch -------------------------------------------------------------
-
 func httpFetch(c *core.Context, params json.RawMessage) (any, error) {
 	var p struct {
 		URL        string            `json:"url"`
@@ -862,8 +811,8 @@ func httpFetch(c *core.Context, params json.RawMessage) (any, error) {
 		Headers    map[string]string `json:"headers"`
 		Body       string            `json:"body"`
 		TimeoutMS  int               `json:"timeoutMs"`
-		Encoding   string            `json:"encoding"`   // "utf8" (default) | "base64"
-		SkipVerify bool              `json:"skipVerify"` // skip TLS cert check (HTTPS only)
+		Encoding   string            `json:"encoding"`
+		SkipVerify bool              `json:"skipVerify"`
 	}
 	if err := c.Bind(params, &p); err != nil {
 		return nil, core.Errorf("bad_request", "%v", err)
@@ -904,16 +853,11 @@ func httpFetch(c *core.Context, params json.RawMessage) (any, error) {
 
 	transport := http.DefaultTransport
 	if p.SkipVerify {
-		transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}} //nolint:gosec
+		transport = &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
 	}
 	client := &http.Client{
 		Timeout:   timeout,
 		Transport: transport,
-		// Re-run the same authorization path (SecurityPolicy + OnHTTPFetch)
-		// against every redirect target, not just the original URL — a
-		// remote server can otherwise redirect an allowed request to a
-		// URL the configured policy would have denied (e.g. an internal
-		// or metadata address) and bypass it silently.
 		CheckRedirect: func(nextReq *http.Request, via []*http.Request) error {
 			if len(via) >= 10 {
 				return fmt.Errorf("stopped after 10 redirects")
@@ -932,7 +876,7 @@ func httpFetch(c *core.Context, params json.RawMessage) (any, error) {
 	}
 	defer resp.Body.Close()
 
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20)) // 64 MiB response cap
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
 	if err != nil {
 		return nil, core.Errorf("http", "reading response: %v", err)
 	}
@@ -966,8 +910,6 @@ func httpFetch(c *core.Context, params json.RawMessage) (any, error) {
 	}, nil
 }
 
-// ---- Env get ----------------------------------------------------------------
-
 func envGet(c *core.Context, params json.RawMessage) (any, error) {
 	var p struct {
 		Key string `json:"key"`
@@ -986,8 +928,6 @@ func envGet(c *core.Context, params json.RawMessage) (any, error) {
 	v, found := os.LookupEnv(p.Key)
 	return map[string]any{"key": p.Key, "value": v, "found": found}, nil
 }
-
-// ---- FS watch ---------------------------------------------------------------
 
 func fsWatch(c *core.Context, params json.RawMessage) (any, error) {
 	var p struct {
@@ -1020,7 +960,7 @@ func fsWatch(c *core.Context, params json.RawMessage) (any, error) {
 
 	watchMu.Lock()
 	if cancel, ok := watchRegistry[p.ID]; ok {
-		cancel() // stop existing watcher with same ID
+		cancel()
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	watchRegistry[p.ID] = cancel
@@ -1105,8 +1045,6 @@ func fsUnwatch(c *core.Context, params json.RawMessage) (any, error) {
 	return map[string]any{"ok": true, "stopped": ok, "id": p.ID}, nil
 }
 
-// ---- FS copy ----------------------------------------------------------------
-
 func fsCopy(c *core.Context, params json.RawMessage) (any, error) {
 	var p struct {
 		Src       string `json:"src"`
@@ -1189,8 +1127,6 @@ func copyDir(src, dst string, overwrite bool) error {
 		return copyFile(path, target, overwrite)
 	})
 }
-
-// ---- KV store ---------------------------------------------------------------
 
 func kvLoad() {
 	kvOnce.Do(func() {
@@ -1293,8 +1229,6 @@ func kvList(_ *core.Context, _ json.RawMessage) (any, error) {
 	return map[string]any{"entries": entries, "count": len(entries)}, nil
 }
 
-// ---- Network ----------------------------------------------------------------
-
 func netResolve(c *core.Context, params json.RawMessage) (any, error) {
 	var p struct {
 		Host string `json:"host"`
@@ -1319,8 +1253,6 @@ func netResolve(c *core.Context, params json.RawMessage) (any, error) {
 	}, nil
 }
 
-// ---- App --------------------------------------------------------------------
-
 func appQuit(c *core.Context, _ json.RawMessage) (any, error) {
 	if err := c.Authorize(core.SecurityDecision{Category: "app", Operation: "quit"}); err != nil {
 		return nil, err
@@ -1336,8 +1268,6 @@ func appReload(c *core.Context, _ json.RawMessage) (any, error) {
 	c.Host.Emit("reload", nil)
 	return map[string]any{"ok": true}, nil
 }
-
-// ---- Filesystem extras -------------------------------------------------------
 
 func fsGlob(c *core.Context, params json.RawMessage) (any, error) {
 	var p struct {
@@ -1401,7 +1331,6 @@ func fsTemp(c *core.Context, params json.RawMessage) (any, error) {
 	if len(params) > 0 {
 		_ = c.Bind(params, &p)
 	}
-	// Validate explicitly specified dir; empty dir uses os.TempDir() (always permitted).
 	if p.Dir != "" {
 		if _, err := checkPath(p.Dir); err != nil {
 			return nil, err
@@ -1427,12 +1356,6 @@ func fsTemp(c *core.Context, params json.RawMessage) (any, error) {
 	return map[string]any{"path": f.Name(), "isDir": false}, nil
 }
 
-// ---- Process list -----------------------------------------------------------
-
-// procList delegates to the per-platform pure-Go implementation
-// (platformProcList in osinfo_linux.go / osinfo_darwin.go / osinfo_windows.go).
-// "supported" is false on platforms where enumerating processes without a
-// subprocess isn't safely implementable (see osinfo_darwin.go).
 func procList(c *core.Context, _ json.RawMessage) (any, error) {
 	if err := c.Authorize(core.SecurityDecision{Category: "process", Operation: "list"}); err != nil {
 		return nil, err
@@ -1444,8 +1367,6 @@ func procList(c *core.Context, _ json.RawMessage) (any, error) {
 		"supported": platformProcListSupported(),
 	}, nil
 }
-
-// ---- Network port check -----------------------------------------------------
 
 func netPort(c *core.Context, params json.RawMessage) (any, error) {
 	var p struct {
@@ -1471,7 +1392,7 @@ func netPort(c *core.Context, params json.RawMessage) (any, error) {
 	if timeout <= 0 {
 		timeout = 3 * time.Second
 	}
-	addr := fmt.Sprintf("%s:%d", p.Host, p.Port)
+	addr := net.JoinHostPort(p.Host, strconv.Itoa(p.Port))
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
 		return map[string]any{"open": false, "host": p.Host, "port": p.Port, "addr": addr}, nil
@@ -1479,8 +1400,6 @@ func netPort(c *core.Context, params json.RawMessage) (any, error) {
 	_ = conn.Close()
 	return map[string]any{"open": true, "host": p.Host, "port": p.Port, "addr": addr}, nil
 }
-
-// ---- KV clear ---------------------------------------------------------------
 
 func kvClear(c *core.Context, _ json.RawMessage) (any, error) {
 	if err := c.Authorize(core.SecurityDecision{Category: "kv", Operation: "clear"}); err != nil {
@@ -1497,8 +1416,6 @@ func kvClear(c *core.Context, _ json.RawMessage) (any, error) {
 	}
 	return map[string]any{"ok": true, "cleared": count}, nil
 }
-
-// ---- Env list ---------------------------------------------------------------
 
 func envList(c *core.Context, params json.RawMessage) (any, error) {
 	var p struct {
@@ -1522,8 +1439,6 @@ func envList(c *core.Context, params json.RawMessage) (any, error) {
 	}
 	return map[string]any{"vars": out, "count": len(out)}, nil
 }
-
-// ---- Security capabilities --------------------------------------------------
 
 func securityCapabilities(_ *core.Context, _ json.RawMessage) (any, error) {
 	return map[string]any{
@@ -1570,8 +1485,6 @@ func defaultShellName() string {
 	return shellName
 }
 
-// processListAvailable reflects the real pure-Go platformProcList capability
-// (see osinfo_*.go), not the presence of an external tool on PATH.
 func processListAvailable() bool {
 	return platformProcListSupported()
 }

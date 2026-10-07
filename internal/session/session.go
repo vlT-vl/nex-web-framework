@@ -1,4 +1,3 @@
-// Package session manages per-launch session tokens with sliding expiry.
 package session
 
 import (

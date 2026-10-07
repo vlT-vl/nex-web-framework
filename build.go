@@ -1,20 +1,5 @@
 //go:build ignore
 
-// Build orchestrator for nex-web.
-// Usage: go run build.go [command] [flags]
-//
-//	build         (default) build frontend then all target binaries
-//	release       optimized build (-s -w)
-//	obfuscate     release + garble code obfuscation
-//	requirements  show and validate host toolchain requirements
-//	doctor        alias for requirements
-//	clean         remove release/ and frontend/dist contents
-//
-// Flags:
-//
-//	--plain  skip garble and use go build directly
-//
-// No CGO required: cross-compilation works from any host to any target.
 package main
 
 import (
@@ -160,8 +145,6 @@ func doBuild(release, obfuscate bool) error {
 	return nil
 }
 
-// buildTargets returns all supported targets. Because nex-web uses CGO_ENABLED=0,
-// cross-compilation works from any host without a native C toolchain.
 func buildTargets() []buildTarget {
 	return []buildTarget{
 		{GOOS: "darwin", GOARCH: "amd64"},
@@ -216,7 +199,6 @@ func targetEnv(target buildTarget, garbleScope string) []string {
 	return env
 }
 
-// packagePlatformApp creates a per-platform release folder with the binary and extras.
 func packagePlatformApp(binaryPath, appName, appID string, target buildTarget) error {
 	switch target.GOOS {
 	case "darwin":
@@ -305,7 +287,6 @@ func packageGenericApp(binaryPath, appID string, target buildTarget) error {
 	return nil
 }
 
-// doRequirements prints the requirement checklist for nex-web builds.
 func doRequirements() error {
 	targets := buildTargets()
 	fmt.Println("nex-web build requirements")
@@ -316,7 +297,7 @@ func doRequirements() error {
 	}
 	fmt.Println()
 	fmt.Println("expected host tools:")
-	fmt.Println("  - Go 1.26.4+")
+	fmt.Println("  - Go 1.27.1+")
 	fmt.Println("  - Node 18+ with npm")
 	fmt.Println("  - garble on PATH, or network access for: go install mvdan.cc/garble@latest")
 	fmt.Println()
@@ -433,8 +414,6 @@ func buildFrontend() error {
 	return runCmd(frontendDir, nil, "npm", "run", "build")
 }
 
-// appNameFromMain reads NEXWEB_APP_NAME from .env first, then falls back to
-// parsing main.go. It understands both string literals and envDefault(...) calls.
 func appNameFromMain() (string, error) {
 	if name := strings.TrimSpace(scriptEnvDefault("NEXWEB_APP_NAME", "")); name != "" {
 		return name, nil

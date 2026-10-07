@@ -1,5 +1,3 @@
-// Package core contains shared framework types: Context, HandlerFunc, Host,
-// Registrar, RPCError. Kept separate to avoid circular imports.
 package core
 
 import (
@@ -13,8 +11,6 @@ import (
 
 type HandlerFunc func(c *Context, params json.RawMessage) (any, error)
 
-// SecurityDecision describes a sensitive operation before it is executed.
-// Applications can inspect it through Config.SecurityPolicy or focused hooks.
 type SecurityDecision struct {
 	Method    string          `json:"method"`
 	Category  string          `json:"category"`
@@ -31,22 +27,17 @@ type SecurityDecision struct {
 	Params    json.RawMessage `json:"params,omitempty"`
 }
 
-// SecurityPolicy is optional. Returning nil allows the operation; returning an
-// error denies it and the frontend receives an RPC error.
 type SecurityPolicy interface {
 	Allow(*Context, SecurityDecision) error
 }
 
-// Host is what the App exposes to handlers (event emission, process control).
-// Web variant: no window management, no main-thread dispatch constraint.
 type Host interface {
 	Authorize(*Context, SecurityDecision) error
-	OnMain(fn func()) // calls fn() directly; kept for interface parity with handlers
+	OnMain(fn func())
 	Emit(event string, payload any)
 	Quit()
 }
 
-// Registrar lets sub-packages register handlers without importing App.
 type Registrar interface {
 	Register(method string, fn HandlerFunc)
 }

@@ -1,8 +1,5 @@
 //go:build linux
 
-// Linux implementations of the platform-specific OS-info helpers.
-// Every value here comes from stdlib file reads (/proc, /etc/os-release) or
-// the stdlib syscall package (Uname, Statfs) — no subprocess is spawned.
 package system
 
 import (
@@ -30,8 +27,6 @@ func osVersionInfo() string {
 	return ""
 }
 
-// platformKernelInfo reads the kernel identity via the uname(2) syscall
-// (stdlib syscall.Uname) instead of shelling out to `uname -a`.
 func platformKernelInfo() map[string]any {
 	var uts syscall.Utsname
 	if err := syscall.Uname(&uts); err != nil {
@@ -105,8 +100,6 @@ func platformMemoryInfo() map[string]any {
 	return out
 }
 
-// platformDiskInfo enumerates mounted filesystems from /proc/mounts and
-// reads usage via statfs(2) (stdlib syscall.Statfs) — no `df` subprocess.
 func platformDiskInfo() []map[string]any {
 	out := []map[string]any{}
 	f, err := os.Open("/proc/mounts")
@@ -159,7 +152,6 @@ func platformDiskInfo() []map[string]any {
 	return out
 }
 
-// platformProcList walks /proc/<pid> directly (no `ps` subprocess).
 func platformProcList() []map[string]any {
 	out := []map[string]any{}
 	entries, err := os.ReadDir("/proc")

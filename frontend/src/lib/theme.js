@@ -11,7 +11,6 @@ export function getThemePreference() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (THEMES.has(saved)) return saved;
   } catch {
-    // Storage can fail in restricted contexts; fall back to the OS.
   }
   return "system";
 }
@@ -35,7 +34,6 @@ export function setThemePreference(preference) {
   try {
     localStorage.setItem(STORAGE_KEY, normalized);
   } catch {
-    // The applied document theme is still updated below.
   }
   return applyTheme(normalized);
 }

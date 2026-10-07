@@ -8,11 +8,11 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.1.0--R070726-blue?style=flat-square" alt="version"/>
-  <img src="https://img.shields.io/badge/go-1.26.4-00ADD8?style=flat-square&logo=go" alt="go"/>
-  <img src="https://img.shields.io/badge/react-19.2.7-61DAFB?style=flat-square&logo=react&logoColor=white" alt="react"/>
+  <img src="https://img.shields.io/badge/version-0.1.1--R071026-blue?style=flat-square" alt="version"/>
+  <img src="https://img.shields.io/badge/go-1.27.1-00ADD8?style=flat-square&logo=go" alt="go"/>
+  <img src="https://img.shields.io/badge/react-19.3.0-61DAFB?style=flat-square&logo=react&logoColor=white" alt="react"/>
   <img src="https://img.shields.io/badge/react--icons-5.7.0-61DAFB?style=flat-square&logo=react&logoColor=white" alt="react-icons"/>
-  <img src="https://img.shields.io/badge/vite-8.1.3-646CFF?style=flat-square&logo=vite&logoColor=white" alt="vite"/>
+  <img src="https://img.shields.io/badge/vite-8.3.2-646CFF?style=flat-square&logo=vite&logoColor=white" alt="vite"/>
   <img src="https://img.shields.io/badge/CGO-disabled-success?style=flat-square" alt="cgo"/>
   <img src="https://img.shields.io/badge/license-proprietary-critical?style=flat-square" alt="license"/>
 </p>
@@ -44,7 +44,7 @@ in the same pass, so the public entry point, full manual, and working handoff st
 
 | Tool | Version | Notes |
 |---|---|---|
-| Go | 1.26.4+ | CGO not required |
+| Go | 1.27.1+ | CGO not required |
 | Node | 18+ with npm | Frontend build only |
 | garble | auto-installed | `build.go` installs it when missing |
 

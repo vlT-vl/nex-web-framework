@@ -1,69 +1,5 @@
-/**
- * nex-web client bridge — pure JavaScript, no TypeScript, no external deps.
- *
- * The Go backend serves /nex.js which opens an SSE stream using a one-time
- * nonce. The server delivers the real session token inside the first "connected"
- * SSE event payload and stores it in window.__NEX__.token — the token never
- * appears in any file or URL. This library reads window.__NEX__ and provides:
- *
- *   call(method, params?)         — RPC call to the Go backend
- *   on(event, handler)            — subscribe to backend events; returns unsubscribe fn
- *   session()                     — fetch current session info
- *
- *   os.info()                     — full OS snapshot (host + user + runtime + ...)
- *   os.host()                     — hostname, OS, arch, CPU, kernel, platform, uptime
- *   os.user()                     — current user (uid, gid, username, groups)
- *   os.runtime()                  — Go runtime stats, mem, build info
- *   os.process()                  — pid, ppid, exe, cwd, args
- *   os.network()                  — network interfaces
- *   os.disks()                    — disk volumes
- *   os.memory()                   — Go heap + system memory
- *   os.time()                     — local/UTC time, timezone
- *   env.paths()                   — home, config, cache, temp, exe, cwd
- *   shell.exec(command, opts?)    — run shell command, capture output
- *   shell.run(command, opts?)     — alias for shell.exec
- *   shell.start(command, opts?)   — start background process; returns PID
- *   fs.read(path, encoding?)      — read file (utf8 | base64)
- *   fs.write(path, data, enc?)    — write file
- *   fs.list(path)                 — list directory
- *   fs.exists(path)               — check existence
- *   fs.stat(path)                 — file metadata
- *   fs.mkdir(path)                — create directory (recursive)
- *   fs.remove(path, recursive?)   — remove file/directory
- *   fs.rename(from, to)           — rename/move
- *   app.info()                    — app metadata (name, version, build, author, public env)
- *   app.quit()                    — gracefully stop the web server
- *   app.reload()                  — reload all connected browser clients via SSE
- *   framework.info()              — nex-web framework identity (name, version, build, stack)
- *   framework.stack()             — resolved runtime stack (Go version, build settings, deps)
- *   log.print(message)            — write to backend log (no level prefix)
- *   log.trace/debug/info/warning/error(message) — structured frontend→backend logging
- *   http.fetch(url, opts?)        — server-side HTTP/HTTPS request (bypasses CORS)
- *   env.get(key)                  — read a specific backend environment variable
- *   fs.copy(src, dst, overwrite?) — copy file or directory
- *   fs.watch(path, opts?)         — poll a path; emits nex:fs.changed SSE events
- *   fs.unwatch(id)                — stop a watcher by id
- *   fs.glob(pattern)              — filepath.Glob — files matching a shell pattern
- *   fs.abs(path)                  — resolve path to absolute form (server CWD-relative)
- *   fs.temp(opts?)                — create a temp file or dir; returns its path
- *   kv.get(key)                   — read from persistent JSON KV store
- *   kv.set(key, value)            — write any JSON value to persistent KV store
- *   kv.delete(key)                — remove a key from KV store
- *   kv.list()                     — list all KV entries
- *   kv.clear()                    — delete all KV entries at once
- *   netutil.resolve(host)         — DNS lookup: IP addresses + CNAME
- *   netutil.port({host,port})     — TCP dial check: returns { open, host, port, addr }
- *   proc.list()                   — list running processes (pid, ppid, user, name);
- *                                    { supported: false } on platforms without a safe
- *                                    pure-Go implementation (currently: darwin)
- *   env.list(prefix?)             — list backend env vars, optional prefix filter
- *   security.capabilities()       — inspect available sensitive API surfaces
- */
-
 const NEX = (typeof window !== "undefined" && window.__NEX__) || { token: "", base: "" };
 const API_BASE = import.meta.env.VITE_API_BASE ?? "/api";
-
-// ── Core RPC ─────────────────────────────────────────────────────────────────
 
 export class nexError extends Error {
   constructor(code, message) {
@@ -73,12 +9,6 @@ export class nexError extends Error {
   }
 }
 
-/**
- * Call a backend RPC method.
- * @param {string} method
- * @param {unknown} [params]
- * @returns {Promise<unknown>}
- */
 export async function call(method, params = {}) {
   const res = await fetch(`${API_BASE}/rpc`, {
     method: "POST",
@@ -94,20 +24,12 @@ export async function call(method, params = {}) {
   return data.result;
 }
 
-/**
- * Subscribe to a backend event emitted via nex.Emit() on the Go side.
- * Events arrive via the SSE stream set up by /nex.js.
- * @param {string} event
- * @param {(payload: unknown) => void} handler
- * @returns {() => void} unsubscribe
- */
 export function on(event, handler) {
   const listener = (e) => handler(e.detail);
   window.addEventListener(`nex:${event}`, listener);
   return () => window.removeEventListener(`nex:${event}`, listener);
 }
 
-/** Fetch current session metadata. */
 export async function session() {
   const res = await fetch(`${API_BASE}/session`, {
     headers: { "X-nex-Token": NEX.token },
@@ -116,63 +38,37 @@ export async function session() {
   return res.json();
 }
 
-// ── Namespaced helpers ────────────────────────────────────────────────────────
-
 export const os = {
-  /** Full OS snapshot: host + user + runtime + network + disks + memory + time. */
   info: () => call("sys.os.info"),
-  /** Hostname, OS, arch, CPU, kernel, platform, uptime. */
   host: () => call("sys.os.host"),
-  /** Current user: uid, gid, username, name, groups. */
   user: () => call("sys.os.user"),
-  /** Go runtime stats, goroutines, mem, build info. */
   runtime: () => call("sys.os.runtime"),
-  /** Process info: pid, ppid, exe, cwd, args. */
   process: () => call("sys.os.process"),
-  /** Network interfaces with addresses. */
   network: () => call("sys.os.network"),
-  /** Disk volumes with usage. */
   disks: () => call("sys.os.disks"),
-  /** Go heap + system memory stats. */
   memory: () => call("sys.os.memory"),
-  /** Current local/UTC time, timezone, unix timestamp. */
   time: () => call("sys.os.time"),
-  /** Alias kept for compatibility. */
   paths: () => call("sys.env.paths"),
 };
 
 export const env = {
-  /** Standard paths: home, config, cache, temp, exe, cwd. */
   paths: () => call("sys.env.paths"),
-  /** Read a specific backend environment variable by name. */
   get: (key) => call("sys.env.get", { key }),
-  /** List all backend env vars. Optional prefix filters by key prefix. */
   list: (prefix = "") => call("sys.env.list", { prefix }),
 };
 
 export const http = {
-  /**
-   * Server-side HTTP/HTTPS request. Bypasses browser CORS restrictions.
-   * @param {string} url
-   * @param {{ method?, headers?, body?, timeoutMs?, encoding?, skipVerify? }} [opts]
-   *   skipVerify: true disables TLS certificate validation (HTTPS self-signed certs)
-   */
   fetch: (url, opts = {}) => call("sys.http.fetch", { url, ...opts }),
 };
 
 export const shell = {
-  /** @param {{cwd?:string, env?:Record<string,string>, timeoutMs?:number}} [opts] */
   exec: (command, opts = {}) => call("sys.shell.exec", { command, ...opts }),
-  /** @param {{cwd?:string, env?:Record<string,string>, timeoutMs?:number}} [opts] */
   run: (command, opts = {}) => call("sys.shell.run", { command, ...opts }),
-  /** @param {{cwd?:string, env?:Record<string,string>}} [opts] */
   start: (command, opts = {}) => call("sys.shell.start", { command, ...opts }),
 };
 
 export const fs = {
-  /** @param {"utf8"|"base64"} [encoding] */
   read: (path, encoding = "utf8") => call("sys.fs.read", { path, encoding }),
-  /** @param {"utf8"|"base64"} [encoding] */
   write: (path, data, encoding = "utf8") =>
     call("sys.fs.write", { path, data, encoding }),
   list: (path) => call("sys.fs.list", { path }),
@@ -181,24 +77,11 @@ export const fs = {
   mkdir: (path) => call("sys.fs.mkdir", { path }),
   remove: (path, recursive = false) => call("sys.fs.remove", { path, recursive }),
   rename: (from, to) => call("sys.fs.rename", { from, to }),
-  /** @param {boolean} [overwrite] */
   copy: (src, dst, overwrite = false) => call("sys.fs.copy", { src, dst, overwrite }),
-  /**
-   * Poll a path and emit nex:fs.changed events on creation/modification/deletion.
-   * @param {string} path
-   * @param {{ id?, intervalMs? }} [opts]
-   */
   watch: (path, opts = {}) => call("sys.fs.watch", { path, ...opts }),
-  /** Stop a watcher started with fs.watch(). */
   unwatch: (id) => call("sys.fs.unwatch", { id }),
-  /** Shell-style glob pattern. Returns { matches: string[], count }. */
   glob: (pattern) => call("sys.fs.glob", { pattern }),
-  /** Resolve a path to its absolute form relative to the server's CWD. */
   abs: (path) => call("sys.fs.abs", { path }),
-  /**
-   * Create a temporary file or directory. Returns { path, isDir }.
-   * @param {{ dir?, prefix?, isDir? }} [opts]
-   */
   temp: (opts = {}) => call("sys.fs.temp", opts),
 };
 
@@ -218,21 +101,15 @@ export const kv = {
   set: (key, value) => call("sys.kv.set", { key, value }),
   delete: (key) => call("sys.kv.delete", { key }),
   list: () => call("sys.kv.list"),
-  /** Delete all entries from the persistent KV store. Returns { ok, cleared }. */
   clear: () => call("sys.kv.clear"),
 };
 
 export const netutil = {
   resolve: (host) => call("sys.net.resolve", { host }),
-  /**
-   * TCP dial check: returns { open, host, port, addr }.
-   * @param {{ host?: string, port: number, timeoutMs?: number }} opts
-   */
   port: ({ host = "localhost", port, timeoutMs } = {}) =>
     call("sys.net.port", { host, port, timeoutMs }),
 };
 
-/** Running processes on the server (pid, ppid, user, name). */
 export const proc = {
   list: () => call("sys.proc.list"),
 };
@@ -250,30 +127,20 @@ export const logger = {
   error:   (message) => call("sys.log.error",   { message }),
 };
 
-// ── API risk levels ───────────────────────────────────────────────────────────
-
 const privilegedApiIds = new Set([
-  // Arbitrary code / shell execution
   "sys.shell.exec", "sys.shell.run", "sys.shell.start",
-  // Filesystem access (read, write, delete, move)
   "sys.fs.read", "sys.fs.write", "sys.fs.list", "sys.fs.exists",
   "sys.fs.stat", "sys.fs.mkdir", "sys.fs.copy", "sys.fs.temp",
   "sys.fs.watch", "sys.fs.unwatch", "sys.fs.abs", "sys.fs.glob",
   "sys.fs.remove", "sys.fs.rename",
-  // Service disruption
   "sys.app.reload", "sys.app.quit",
 ]);
 
 const userMediatedApiIds = new Set([
-  // Env / sensitive config exposure
   "sys.env.get", "sys.env.list", "sys.env.paths",
-  // System identity + process exposure (includes os.Args which may contain secrets)
   "sys.os.user", "sys.os.host", "sys.os.process", "sys.os.info",
-  // Process inspection
   "sys.proc.list",
-  // KV mutations
   "sys.kv.set", "sys.kv.delete", "sys.kv.clear",
-  // Outbound network
   "sys.http.fetch", "sys.net.resolve", "sys.net.port",
 ]);
 
@@ -282,8 +149,6 @@ export function apiRiskLevel(id) {
   if (userMediatedApiIds.has(id)) return "user";
   return "safe";
 }
-
-// ── API catalog (for dashboard/docs) ─────────────────────────────────────────
 
 export const apiCatalog = [
   {

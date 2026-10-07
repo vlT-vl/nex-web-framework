@@ -1,5 +1,3 @@
-// Package meta holds framework-level identity constants.
-// Set at build time with -ldflags "-X nex-web/internal/meta.Build=R... -X ...".
 package meta
 
 import (
@@ -11,9 +9,9 @@ import (
 const Name = "nex-web"
 
 var (
-	Version = "0.1.0"
-	Build   = "R070726"
-	Updated = "7 Luglio 2026"
+	Version = "0.1.1"
+	Build   = "R071026"
+	Updated = "7 Ottobre 2026"
 	Author  = "© 2026 vlT di Veronesi Lorenzo"
 )
 
