@@ -4,6 +4,7 @@ import docsRaw from "../../DOCS.md?raw";
 import licenseRaw from "../../LICENSE?raw";
 import { renderMarkdown } from "./lib/markdown.js";
 import { NexWebLogo } from "./components/nexweblogo.jsx";
+import { UpdaterPanel } from "./components/UpdaterPanel.jsx";
 import {
   applyTheme,
   getThemePreference,
@@ -13,11 +14,11 @@ import {
 } from "./lib/theme.js";
 import {
   LuBookOpen, LuCode, LuCpu, LuDatabase, LuExternalLink, LuFileText,
-  LuFolder, LuGlobe, LuInfo, LuLayers, LuList, LuMonitor,
+  LuDownload, LuFolder, LuGlobe, LuInfo, LuLayers, LuList, LuMonitor,
   LuPackage, LuPlay, LuServer, LuSettings, LuShield, LuTerminal,
   LuTrash2, LuWifi, LuX, LuZap,
 } from "react-icons/lu";
-import { FiMoon, FiMonitor, FiSun } from "react-icons/fi";
+import { FiMoon, FiMonitor, FiRefreshCw, FiSun } from "react-icons/fi";
 
 const stackBadges = [
   { label: "nex-web",     tone: "blue",   resolve: (_, __, fw) => fw ? `${fw.version}${fw.build ? `-${fw.build}` : ""}` : "…" },
@@ -385,6 +386,7 @@ export default function App() {
   const [theme, setTheme] = useState(() => resolveTheme(getThemePreference()));
   const [docsOpen, setDocsOpen] = useState(false);
   const [licenseOpen, setLicenseOpen] = useState(false);
+  const [stale, setStale] = useState(false);
 
   function log(text, kind = "info") {
     setLines((prev) =>
@@ -392,8 +394,14 @@ export default function App() {
     );
   }
 
+  function syncInfo(next) {
+    setInfo(next);
+    const bundleId = import.meta.env.VITE_BUILD_ID;
+    if (bundleId && next) setStale(bundleId !== `${next.version ?? ""}-${next.build ?? ""}`);
+  }
+
   useEffect(() => {
-    nex.app.info().then(setInfo).catch((e) => log(`app.info: ${e.message}`, "err"));
+    nex.app.info().then(syncInfo).catch((e) => log(`app.info: ${e.message}`, "err"));
     nex.framework.info().then(setFrameworkInfo).catch(() => {});
     nex.os.info().then(setOsData).catch(() => {});
     nex.session().then(setSess).catch(() => {});
@@ -403,7 +411,7 @@ export default function App() {
     const offDisconnected = nex.on("disconnected", () => setSess(null));
     const offConnected = nex.on("connected", () => {
       nex.session().then(setSess).catch(() => {});
-      nex.app.info().then(setInfo).catch(() => {});
+      nex.app.info().then(syncInfo).catch(() => {});
       nex.framework.info().then(setFrameworkInfo).catch(() => {});
     });
 
@@ -515,6 +523,17 @@ export default function App() {
 
       "sys.proc.list": () => nex.proc.list(),
 
+      "sys.updater.check":         () => nex.updater.check({ manual: true }),
+      "sys.updater.getState":      () => nex.updater.getState(),
+      "sys.updater.download":      () => nex.updater.download(),
+      "sys.updater.install":       () => nex.updater.install(),
+      "sys.updater.confirm":       () => nex.updater.confirm(),
+      "sys.updater.getLastResult": () => nex.updater.getLastResult(),
+      "sys.updater.setSettings": async () => {
+        const state = await nex.updater.getState();
+        return nex.updater.setSettings(state.settings);
+      },
+
       "sys.security.capabilities": () => nex.security.capabilities(),
     }),
     [osData]
@@ -550,6 +569,15 @@ export default function App() {
         onOpenDocs={() => setDocsOpen(true)}
         onOpenLicense={() => setLicenseOpen(true)}
       />
+      {stale ? (
+        <div className="stale-banner" role="status">
+          <span>A newer version of this app is running on the server.</span>
+          <button className="btn" type="button" onClick={() => nex.app.reload().catch(() => window.location.reload())}>
+            <FiRefreshCw aria-hidden="true" className="ui-icon" />
+            Reload
+          </button>
+        </div>
+      ) : null}
       <FileModal
         open={docsOpen}
         onClose={() => setDocsOpen(false)}
@@ -626,6 +654,11 @@ export default function App() {
               <div>{frameworkInfo?.author ?? "…"}</div>
             </div>
           </div>
+        </section>
+
+        <section className="section">
+          <span className="label"><LuDownload size={13} /> Updates</span>
+          <UpdaterPanel />
         </section>
 
         <section className="section">

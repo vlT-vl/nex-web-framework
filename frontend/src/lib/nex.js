@@ -24,6 +24,10 @@ export async function call(method, params = {}) {
   return data.result;
 }
 
+export function isReady() {
+  return typeof window !== "undefined" && Boolean(window.__NEX__);
+}
+
 export function on(event, handler) {
   const listener = (e) => handler(e.detail);
   window.addEventListener(`nex:${event}`, listener);
@@ -114,6 +118,18 @@ export const proc = {
   list: () => call("sys.proc.list"),
 };
 
+export const updater = {
+  getState: () => call("sys.updater.getState"),
+  check: (opts = {}) => call("sys.updater.check", opts),
+  download: () => call("sys.updater.download"),
+  install: () => call("sys.updater.install"),
+  confirm: () => call("sys.updater.confirm"),
+  getLastResult: () => call("sys.updater.getLastResult"),
+  setSettings: (settings) => call("sys.updater.setSettings", settings),
+  onState: (handler) => on("updater.state", handler),
+  onProgress: (handler) => on("updater.progress", handler),
+};
+
 export const security = {
   capabilities: () => call("sys.security.capabilities"),
 };
@@ -134,6 +150,7 @@ const privilegedApiIds = new Set([
   "sys.fs.watch", "sys.fs.unwatch", "sys.fs.abs", "sys.fs.glob",
   "sys.fs.remove", "sys.fs.rename",
   "sys.app.reload", "sys.app.quit",
+  "sys.updater.install",
 ]);
 
 const userMediatedApiIds = new Set([
@@ -253,6 +270,18 @@ export const apiCatalog = [
     namespace: "proc",
     methods: [
       { id: "sys.proc.list", sig: "proc.list()", desc: "List running processes: pid, ppid, user, name. Includes { supported } — false on platforms without a safe pure-Go implementation (currently: darwin)." },
+    ],
+  },
+  {
+    namespace: "updater",
+    methods: [
+      { id: "sys.updater.getState",     sig: "updater.getState()",         desc: "Current updater state, settings and available update." },
+      { id: "sys.updater.check",        sig: "updater.check(opts?)",       desc: "Check the configured update source (GitHub releases or JSON feed)." },
+      { id: "sys.updater.download",     sig: "updater.download()",         desc: "Download and verify the available update." },
+      { id: "sys.updater.install",      sig: "updater.install()",          desc: "Install the downloaded update and restart; rolls back automatically on failure. Denied to remote clients by default." },
+      { id: "sys.updater.confirm",      sig: "updater.confirm()",          desc: "Confirm the new build is healthy (the backend confirms by itself after a self-probe; callable by hand)." },
+      { id: "sys.updater.getLastResult", sig: "updater.getLastResult()",   desc: "Outcome of the last update attempt, surfaced once." },
+      { id: "sys.updater.setSettings",  sig: "updater.setSettings(settings)", desc: "Set automatic check, automatic download and pre-release options." },
     ],
   },
   {

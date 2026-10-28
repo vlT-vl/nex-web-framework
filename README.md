@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.1.1--R071026-blue?style=flat-square" alt="version"/>
+  <img src="https://img.shields.io/badge/version-0.1.2--R281026-blue?style=flat-square" alt="version"/>
   <img src="https://img.shields.io/badge/go-1.27.1-00ADD8?style=flat-square&logo=go" alt="go"/>
   <img src="https://img.shields.io/badge/react-19.3.0-61DAFB?style=flat-square&logo=react&logoColor=white" alt="react"/>
   <img src="https://img.shields.io/badge/react--icons-5.7.0-61DAFB?style=flat-square&logo=react&logoColor=white" alt="react-icons"/>
@@ -33,10 +33,17 @@ Go backend   http://127.0.0.1:<rand> (embedded Vite SPA + RPC + SSE)
 
 ---
 
+## Automatic updates
+
+Apps can update themselves from a GitHub repository (releases tagged `v<MAJOR.MINOR.PATCH>-R<DDMMYY>`, one `build-<goos>-<goarch>.zip` per platform) or from an `https` JSON feed, set with `NEXWEB_UPDATE_URL`. The update is checked once per start, downloaded and verified with SHA-256 (and an optional Ed25519 signature), then installed by a helper that restores the previous version if the new one does not come up healthy. Install is denied to remote clients by default and is notify-only under containers and supervisors. The template shows the status in its **Updates** section.
+
+---
+
 ## Project rules
 
-Every framework change must update **README.md**, **DOCS.md**, and **handoff.md**
-in the same pass, so the public entry point, full manual, and working handoff stay aligned.
+Every framework change must update **README.md**, **DOCS.md**, **CHANGELOG.md**, and
+**handoff.md** in the same pass, so the public entry point, full manual, feature log,
+and working handoff stay aligned.
 
 ---
 
@@ -72,7 +79,7 @@ import (
 var distFS embed.FS
 
 func main() {
-    daemon.MaybeDetach(nexweb.FrameworkVersion(), ":3000")
+    daemon.MaybeDetach("my-app", "1.0.0", ":3000")
 
     a := nexweb.New(nexweb.Config{
         Name:       "my-app",   // your app name
@@ -99,7 +106,7 @@ func main() {
 Frontend:
 
 ```js
-import { call, on, os, shell, fs, kv, netutil, http, env, proc, app, framework, logger, security } from "./lib/nex.js";
+import { call, on, os, shell, fs, kv, netutil, http, env, proc, app, framework, logger, security, updater } from "./lib/nex.js";
 
 const info    = await app.info();          // { name, version, build, author, public }
 const fw      = await framework.info();    // { name, version, build, updated, author, stack }
@@ -135,7 +142,7 @@ The frontend template includes `docs` and `license` buttons in the top bar,
 both backed by a single generic `FileModal` component (`frontend/src/App.jsx`).
 `docs` renders `DOCS.md` as sanitized markdown; `license` renders the repo-root
 `LICENSE` as plain text. Both files are pulled in at build time via Vite's
-`?raw` import (`import licenseText from "../../LICENSE?raw"`) — never
+`?raw` import (`import licenseRaw from "../../LICENSE?raw"`) — never
 hardcoded — so the bundled text always matches the actual file on disk.
 
 ---
@@ -160,7 +167,7 @@ Hot reload for the frontend via Vite. Restart `make dev` for Go changes.
 ## Build
 
 ```bash
-make build        # obfuscated binaries → release/<version>-<build>/
+make build        # obfuscated binaries → release/<NEXWEB_APP_VERSION>-<NEXWEB_APP_BUILD>/
 make release      # same + -s -w strip
 make clean
 ```

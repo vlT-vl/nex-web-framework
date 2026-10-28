@@ -4,6 +4,33 @@ All notable changes to the nex-web framework are documented here, newest first.
 This file lists **what** changed per version/build — technical detail, root
 cause, and verification notes live in `handoff.md` only.
 
+## [0.1.2] - R281026 - 2026-10-28
+
+### Added
+
+- Automatic updates: check once per start, verified download and installation
+  with automatic rollback, configured with `NEXWEB_UPDATE_URL` (GitHub
+  repository or JSON feed); `updater.*` API and an **Updates** section in the
+  template
+- Banner in the template offering a reload when the server runs a newer
+  version than the open page
+- Build script and `make requirements` / `make doctor` check that the garble on
+  `PATH` is compatible with the installed Go; an outdated garble stops the build
+  early with a message asking to update it
+
+### Changed
+
+- Framework release metadata updated to `0.1.2` / `R281026`
+- Release folder name now comes from `NEXWEB_APP_VERSION` / `NEXWEB_APP_BUILD`
+  (falls back to the framework metadata when either is missing)
+- Start message of the daemon and backend/listening/public log lines show the
+  app name instead of "nex-web"
+- Template `main.go` loads `.env` before detaching and logs the app and the
+  framework identities
+- App identity (name, version, build, author) is baked into the executable at
+  build time, so a distributed binary starts with its own identity without a
+  `.env`; a runtime `.env` still takes precedence
+
 ## [0.1.1] - R071026 - 2026-10-07
 
 ### Changed

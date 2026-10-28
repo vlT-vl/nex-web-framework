@@ -15,20 +15,31 @@ import (
 //go:embed frontend/dist
 var distFS embed.FS
 
-func main() {
-	publicAddr := envDefault("NEXWEB_PUBLIC_ADDR", ":3000")
-	daemon.MaybeDetach(nexweb.FrameworkVersion(), publicAddr)
+var (
+	buildName    string
+	buildVersion string
+	buildBuild   string
+	buildAuthor  string
+)
 
+func main() {
 	envFile := envDefault("NEXWEB_ENV_FILE", ".env")
 	config.Load(envFile)
 
-	log.Printf("%s %s (%s)", nexweb.Name, nexweb.FrameworkVersion(), nexweb.FrameworkBuild())
+	appName := envDefault("NEXWEB_APP_NAME", baked(buildName, "nex-web-template"))
+	appVersion := envDefault("NEXWEB_APP_VERSION", baked(buildVersion, "dev"))
+	appBuild := envDefault("NEXWEB_APP_BUILD", baked(buildBuild, ""))
+
+	publicAddr := envDefault("NEXWEB_PUBLIC_ADDR", ":3000")
+	daemon.MaybeDetach(appName, appVersion, publicAddr)
+
+	log.Printf("%s %s (%s) · %s %s (%s)", appName, appVersion, appBuild, nexweb.Name, nexweb.FrameworkVersion(), nexweb.FrameworkBuild())
 
 	a := nexweb.New(nexweb.Config{
-		Name:       envDefault("NEXWEB_APP_NAME", "nex-web-template"),
-		Version:    envDefault("NEXWEB_APP_VERSION", "dev"),
-		Build:      envDefault("NEXWEB_APP_BUILD", ""),
-		Author:     envDefault("NEXWEB_APP_AUTHOR", ""),
+		Name:       appName,
+		Version:    appVersion,
+		Build:      appBuild,
+		Author:     envDefault("NEXWEB_APP_AUTHOR", buildAuthor),
 		Dist:       distFS,
 		DistDir:    "frontend/dist",
 		Addr:       envDefault("NEXWEB_ADDR", ":0"),
@@ -67,6 +78,13 @@ func main() {
 func envDefault(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok {
 		return v
+	}
+	return fallback
+}
+
+func baked(value, fallback string) string {
+	if value != "" {
+		return value
 	}
 	return fallback
 }

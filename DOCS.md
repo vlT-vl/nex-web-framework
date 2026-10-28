@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.1.1--R071026-blue?style=flat-square" alt="version"/>
+  <img src="https://img.shields.io/badge/version-0.1.2--R281026-blue?style=flat-square" alt="version"/>
   <img src="https://img.shields.io/badge/go-1.27.1-00ADD8?style=flat-square&logo=go" alt="go"/>
   <img src="https://img.shields.io/badge/react-19.3.0-61DAFB?style=flat-square&logo=react&logoColor=white" alt="react"/>
   <img src="https://img.shields.io/badge/react--icons-5.7.0-61DAFB?style=flat-square&logo=react&logoColor=white" alt="react-icons"/>
@@ -26,7 +26,7 @@ build system, environment model, and full API reference.
 For the short project entry point and quick start, see [README.md](README.md).
 
 Maintenance rule: every framework change must update **README.md**, **DOCS.md**,
-and **handoff.md** in the same pass.
+**CHANGELOG.md**, and **handoff.md** in the same pass.
 
 ---
 
@@ -81,6 +81,7 @@ any host machine.
 | Port check | TCP dial check — port open/closed (`netutil.port`) |
 | Process list | list running server processes (`proc.list`) |
 | Browser reload | force-reload all clients from backend (`app.reload`) |
+| Automatic updates | check once per start, download, verified install with helper and automatic rollback (`updater.*`) |
 | Logging | frontend→backend structured log (`logger.info/debug/error/…`) |
 | Env model | `VITE_*` vars are public; all others stay backend-only |
 | App icon | override favicon via `VITE_APP_ICON` in `.env` — no rebuild |
@@ -101,10 +102,12 @@ any host machine.
 When the release binary starts it checks for the `_NEXWEB_CHILD` env variable.
 If absent, it is the **parent** process: it re-executes itself as a detached
 child (Unix: `setsid`; Windows: `CREATE_NEW_PROCESS_GROUP` + hidden window),
-sets `_NEXWEB_CHILD=1`, prints the public URL, and exits immediately.
+sets `_NEXWEB_CHILD=1`, prints `<app name> <app version> started (PID …) → <public URL>`
+(the app's identity, not the framework's), and exits immediately.
 
 The **child** (daemon) process:
 
+0. Before `main()` runs, `internal/hostenv` answers `--nex-selfcheck` and the updater helper mode (see Updates), so neither detaches nor binds a port; `MaybeDetach` then runs the updater recovery and skips the detach for a process started by the updater helper.
 1. Starts the HTTP backend on an OS-assigned random TCP port (`:0`).
 2. Starts a reverse proxy on `:3000` forwarding all traffic to the random port.
 3. Runs indefinitely serving browser requests through the stable `:3000` entry point.
@@ -158,7 +161,8 @@ nex-web-framework/
 │   └── src/
 │       ├── components/
 │       │   ├── nexweblogo.jsx # React framework logo component
-│       │   └── nexweblogo.css # Dedicated logo animation/layout
+│       │   ├── nexweblogo.css # Dedicated logo animation/layout
+│       │   └── UpdaterPanel.jsx # Reusable updater UI (state, check, download, install, settings)
 │       ├── main.jsx
 │       ├── App.jsx         # Showcase template — all APIs demonstrated + docs modal
 │       ├── index.css
@@ -168,21 +172,25 @@ nex-web-framework/
 │           └── theme.js     # Theme preference helpers (system/light/dark)
 ├── internal/
 │   ├── app/
-│   │   └── app.go          # HTTP server, RPC dispatch, SSE, proxy, nonce manager
+│   │   ├── app.go          # HTTP server, RPC dispatch, SSE, proxy, nonce manager
+│   │   └── updater.go      # Updater host adapter, sys.updater.* handlers, health self-probe
 │   ├── core/
 │   │   └── core.go         # Context, HandlerFunc, Host, Registrar, RPCError
 │   ├── daemon/
-│   │   ├── daemon.go           # MaybeDetach() — public entry point
+│   │   ├── daemon.go           # MaybeDetach() — Recover, then detach (skipped for a helper-launched process)
 │   │   ├── trigger.go          # Enabled() → true  (//go:build !dev)
 │   │   ├── trigger_dev.go      # Enabled() → false (//go:build dev)
 │   │   ├── detach_unix.go      # setsid (//go:build !windows)
 │   │   └── detach_windows.go   # CREATE_NEW_PROCESS_GROUP
+│   ├── hostenv/
+│   │   └── hostenv.go      # Early entry (helper mode, --nex-selfcheck), state dir, supervisor detection, Recover
 │   ├── meta/
 │   │   └── meta.go         # Framework identity — Name, Version, Build, Updated, Author
 │   ├── session/
 │   │   └── session.go      # Per-launch token, sliding expiry, constant-time compare
-│   └── system/
-│       └── system.go       # Built-in sys.* RPC handlers
+│   ├── system/
+│   │   └── system.go       # Built-in sys.* RPC handlers
+│   └── updater/            # Update core (stdlib only): sources, verify, download, extract, helper, rollback
 ├── nex/
 │   └── nex.go              # Public API facade — type aliases, factory, meta re-exports
 ├── res/
@@ -206,6 +214,10 @@ session ──┼──► core ──► system ──┐
 meta    ──┤                      ├──► app ──► nex ──► main
           └──────────────────────┘                 ↑
 daemon ────────────────────────────────────────────┘
+
+updater ──┬──► hostenv ──┬──► daemon
+          │              └──► app
+          └──────────────────► app
 ```
 
 No external runtime dependencies beyond the Go standard library.
@@ -289,7 +301,7 @@ func main() {
 ### JS side
 
 ```js
-import { call, on, os, shell, fs, kv, netutil, http, env, proc, app, framework, logger, security } from "./lib/nex.js";
+import { call, on, os, shell, fs, kv, netutil, http, env, proc, app, framework, logger, security, updater } from "./lib/nex.js";
 
 const info  = await app.info();       // { name, version, build, author, public }
 const fw    = await framework.info(); // { name, version, build, updated, author, stack }
@@ -326,7 +338,7 @@ Both `make` and `go run build.go` are available.
 
 | `make` target | Action |
 |---|---|
-| `make build` | Frontend build + obfuscated binaries → `release/<version>-<build>/` |
+| `make build` | Frontend build + obfuscated binaries → `release/<NEXWEB_APP_VERSION>-<NEXWEB_APP_BUILD>/` (falls back to `internal/meta/meta.go` when either is missing) |
 | `make release` | Same + `-s -w` strip |
 | `make obfuscate` | Alias for release with garble |
 | `make dev` | Vite HMR + Go backend (dev mode, no daemon) |
@@ -345,6 +357,11 @@ Cross-compilation targets (all from any host, `CGO_ENABLED=0`):
 | `windows/amd64` | `<app>-windows-amd64.exe` |
 
 garble flags: `-literals -seed=random`. If garble is missing, `build.go` installs it automatically via `go install mvdan.cc/garble@latest`.
+If garble is found but was built with an older Go than the installed one, `build.go` stops before
+touching anything (the existing `release/` folder is kept) with a message asking you to update it
+(`go install mvdan.cc/garble@latest`); `make requirements` / `make doctor` report the same. The
+check compares the Go version garble was built with against the installed Go, so it is a
+compatibility heuristic: when either version cannot be read, the build proceeds.
 
 To skip garble (diagnostics only):
 
@@ -352,10 +369,19 @@ To skip garble (diagnostics only):
 go run build.go build --plain
 ```
 
+The app identity is baked into every executable: `build.go` reads `NEXWEB_APP_NAME`,
+`NEXWEB_APP_VERSION`, `NEXWEB_APP_BUILD` and `NEXWEB_APP_AUTHOR` from `.env` (then the
+process environment) at build time and injects them with `-ldflags -X`
+(`main.buildName`, `main.buildVersion`, `main.buildBuild`, `main.buildAuthor`).
+A distributed binary therefore starts with its own identity and needs no `.env` next to it;
+a runtime `.env`, when present, still wins. `NEXWEB_APP_NAME` must be set in `.env` (or the
+environment) at build time, because `main.go` assigns the name through `appName` and the
+build script can no longer read it from a string literal.
+
 To set framework metadata at build time via ldflags:
 
 ```bash
-go run build.go build -ldflags "-X nex-web/internal/meta.Version=0.1.1 -X nex-web/internal/meta.Build=R071026"
+go run build.go build -ldflags "-X nex-web/internal/meta.Version=0.1.2 -X nex-web/internal/meta.Build=R281026"
 ```
 
 ---
@@ -367,7 +393,9 @@ backend-only. Variables with `VITE_` are exposed to the frontend via `app.info()
 
 ### App identity
 
-All four app-identity fields are read from `.env` at runtime — no recompile needed.
+All four app-identity fields are read from `.env` at runtime — no recompile needed. When a
+variable is absent at runtime, the value baked into the executable at build time is used
+before the fixed default (see Build system).
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -383,6 +411,9 @@ All four app-identity fields are read from `.env` at runtime — no recompile ne
 | `NEXWEB_ADDR` | `:0` | Backend listen address — `:0` = OS-assigned random port |
 | `NEXWEB_PUBLIC_ADDR` | `:3000` | Public proxy address; empty string = disabled |
 | `NEXWEB_ENV_FILE` | `.env` | Path to the env file |
+| `NEXWEB_UPDATE_URL` | — | Update source: GitHub repository URL or `https` JSON feed URL (updater disabled when unset) |
+| `NEXWEB_UPDATE_ASSET` | `build-{os}-{arch}.zip` | Update asset name pattern |
+| `NEXWEB_STATE_DIR` | see Updates | Folder for updater settings, journal and result |
 
 ### Frontend-public variables (`VITE_` prefix)
 
@@ -408,7 +439,7 @@ Any additional `VITE_*` variable is automatically available in the frontend via 
 | RPC auth | Every call requires `X-nex-Token`; validated with constant-time compare |
 | SSE auth | Nonce-only: `?nonce=` on every connect — real token never appears in URLs or access logs |
 | Expiry | Sliding 12 h session expiry (configurable via `Config.IdleTimeout`) |
-| CORS | Optional `AllowedOrigins`; nil = allow all (appropriate for local-first use) |
+| Origin check | `Config.AllowedOrigins` is the absolute authority when set; when unset, only loopback origins (`localhost`, `127.0.0.1`, `::1`, any port) are accepted and everything else is rejected |
 | Port | Backend on unpredictable random port; only `:3000` is publicly stable |
 | Public port lock | Startup fails if configured `PublicAddr` is already bound; avoids orphan hidden backends |
 | Security policy | Optional `Config.SecurityPolicy` + focused hooks run before sensitive RPC execution |
@@ -422,6 +453,7 @@ nex-web is designed for **local-first, single-user** use. If you expose port 300
 - **`http.fetch`** makes outbound HTTP requests from the server's network perspective. In cloud environments this can reach internal metadata services (e.g. `169.254.169.254`). Validate or restrict URLs at the application level if needed.
 - **`env.get` / `env.list`** expose process environment variables (including secrets) to authenticated clients. Consider whether your deployment requires further restriction.
 - **Security hooks** can deny shell, filesystem, HTTP, env, process, network, KV, and app-control operations before execution.
+- **Updater**: `updater.install()` replaces the running executable, so it is **denied to remote clients by default** (a reachable public port with an open install would be remote code execution on the server). Set `Config.UpdateAllowRemoteInstall` only behind your own authentication. Under a container or supervisor (Docker, Kubernetes, systemd, launchd) the updater is notify-only. Update security equals the security of the release repository: whoever can replace the release asset and its hash can run code on every server that updates from it.
 - For public deployments, add a **Content-Security-Policy** header to prevent XSS from reaching `window.__NEX__.token`.
 
 ---
@@ -444,8 +476,12 @@ nex-web is designed for **local-first, single-user** use. If you expose port 300
 | `IdleTimeout` | `time.Duration` | `12h` | Session sliding expiry |
 | `EnvFile` | `string` | `".env"` | Path to env file |
 | `PublicPrefix` | `string` | `"VITE_"` | Frontend-public env var prefix |
-| `AllowedOrigins` | `[]string` | `nil` | CORS allowlist; nil = allow all |
+| `AllowedOrigins` | `[]string` | `nil` | Origin allowlist; nil = loopback origins only |
 | `FSRoot` | `string` | `""` | Jail all filesystem API calls to this path |
+| `StateDir` | `string` | `""` | Updater state folder (default: `NEXWEB_STATE_DIR`, then see Updates) |
+| `UpdateAllowedHosts` | `[]string` | `nil` | Updater host allow-list override (default: GitHub hosts) |
+| `UpdatePublicKeys` | `[][]byte` | `nil` | Optional Ed25519 public keys; when set an unsigned or badly signed release is rejected. Never read from `.env` |
+| `UpdateAllowRemoteInstall` | `bool` | `false` | Allow `updater.install()` from non-loopback clients |
 | `SecurityPolicy` | `nexweb.SecurityPolicy` | `nil` | Global authorization hook before sensitive RPCs |
 | `OnSecurityDecision` | `func(*nexweb.Context, nexweb.SecurityDecision) error` | `nil` | Global focused callback after `SecurityPolicy` |
 | `OnShellCommand` | `func(*nexweb.Context, nexweb.SecurityDecision) error` | `nil` | Shell exec/run/start hook |
@@ -458,7 +494,7 @@ nex-web is designed for **local-first, single-user** use. If you expose port 300
 | `OnAppControl` | `func(*nexweb.Context, nexweb.SecurityDecision) error` | `nil` | App quit/reload hook |
 
 `Name/Version/Build/Author` describe **your application**. Framework identity
-(`nex-web`, `0.1.1`, `R071026`) always comes from `internal/meta` — never from Config.
+(`nex-web`, `0.1.2`, `R281026`) always comes from `internal/meta` — never from Config.
 
 ---
 
@@ -499,12 +535,12 @@ off(); // unsubscribe
 ```json
 {
   "name":    "nex-web",
-  "version": "0.1.1",
-  "build":   "R071026",
-  "updated": "7 Ottobre 2026",
+  "version": "0.1.2",
+  "build":   "R281026",
+  "updated": "28 Ottobre 2026",
   "author":  "© 2026 vlT di Veronesi Lorenzo",
-  "id":      "nex-web@0.1.1",
-  "stack":   { "nex-web": "nex-web@0.1.1-R071026", "go": "1.27.1" }
+  "id":      "nex-web@0.1.2",
+  "stack":   { "nex-web": "nex-web@0.1.2-R281026", "go": "1.27.1" }
 }
 ```
 
@@ -541,17 +577,19 @@ For framework identity use `framework.info()`.
 ### os and env
 
 Every `os.*` value is gathered with pure Go — the stdlib `syscall` package
-(`Uname`, `Sysctl`/`SysctlUint32`/`SysctlUint64`, `Statfs`/`Getfsstat` on
+(`Uname`, `Sysctl`/`SysctlUint32`, `Statfs`/`Getfsstat` on
 darwin/linux; registry + `kernel32.dll` via `syscall.NewLazyDLL` on windows),
 `/proc`, `/etc/os-release`, or `SystemVersion.plist` — never a subprocess.
 Implementation: `internal/system/osinfo_linux.go` / `osinfo_darwin.go` /
 `osinfo_windows.go`.
 
-Two darwin data points can't be obtained safely without cgo or an unverified
+Some darwin data points can't be obtained safely without cgo or an unverified
 raw-struct decode, and are reported as `{ supported: false }` instead of a
 guessed value: `os.host().uptime` (boot time; `kern.boottime` is a binary
-`timeval`, not a string-typed sysctl) and the `vmStat` sub-field of
-`os.memory()` (page-in/out counters need the Mach `host_statistics64` API).
+`timeval`, not a string-typed sysctl), the total physical memory of
+`os.memory()` (`hw.memsize` is a 64-bit sysctl with no safe stdlib accessor),
+and its `vmStat` sub-field (page-in/out counters need the Mach
+`host_statistics64` API).
 
 | Helper | RPC | Returns |
 |---|---|---|
@@ -578,6 +616,7 @@ guessed value: `os.host().uptime` (boot time; `kern.boottime` is a binary
 
 Params: `{ url, method?, headers?, body?, timeoutMs?, encoding?, skipVerify? }`.
 Default encoding: `"utf8"`. Use `"base64"` for binary responses. Default timeout: 30 s.
+Every redirect hop (up to 10) is authorized again through `OnHTTPFetch` with the new target URL.
 
 ```js
 const res = await http.fetch("https://api.example.com/data", {
@@ -748,6 +787,74 @@ a.Handle("admin.reindex", func(c *nexweb.Context, params json.RawMessage) (any, 
 
 ---
 
+### updater
+
+Native automatic updates. Disabled until `NEXWEB_UPDATE_URL` is set and the app identity is real
+(`Version` = `MAJOR.MINOR.PATCH`, `Build` = `R<DDMMYY>`, e.g. baked into the binary at build time):
+until then `configured: false` and `check()` returns the state without contacting anything.
+
+| Helper | RPC | Returns |
+|---|---|---|
+| `updater.getState()` | `sys.updater.getState` | `{ configured, source, currentVersion, currentBuild, status, update, progress, settings, lastCheck, error }` |
+| `updater.check(opts?)` | `sys.updater.check` | `{ manual? }` → state; a `url` parameter is ignored (the source comes only from the server configuration) |
+| `updater.download()` | `sys.updater.download` | downloads and verifies SHA-256 (and the optional signature) |
+| `updater.install()` | `sys.updater.install` | privileged: swaps the executable, restarts, rolls back automatically on failure |
+| `updater.confirm()` | `sys.updater.confirm` | confirms the new build is healthy (the backend does it by itself; callable by hand) |
+| `updater.getLastResult()` | `sys.updater.getLastResult` | `{ status: "updated" \| "rolledBack:<reason>", reason?, time }`, returned once |
+| `updater.setSettings(s)` | `sys.updater.setSettings` | persists `{ autoCheck, autoDownload, includePrerelease }` |
+
+Events: `updater.state` (full state) and `updater.progress` (`{ received, total }`), delivered through `on()`.
+
+| Variable / field | Meaning |
+|---|---|
+| `NEXWEB_UPDATE_URL` | GitHub repository URL (`https://github.com/owner/repo`) or `https` URL of a JSON feed |
+| `NEXWEB_UPDATE_ASSET` | Optional asset-name pattern, default `build-{os}-{arch}.zip` |
+| `NEXWEB_STATE_DIR` / `Config.StateDir` | State folder (`0700`). Default: the first writable of `<user config dir>/<app name>`, `<executable dir>/.<app name>-state`, `<temp dir>/<app name>-state`. Set the environment variable (not only the `Config` field) if you override it: the recovery that runs before the app starts reads the variable only |
+| `Config.UpdateAllowedHosts` | Optional host allow-list override (default: GitHub API, github.com, `*.githubusercontent.com`) |
+| `Config.UpdatePublicKeys` | Optional Ed25519 public keys; the framework embeds none |
+| `Config.UpdateAllowRemoteInstall` | Allow `install` from non-loopback clients (default `false`) |
+
+Flow and guarantees (same core as the desktop framework):
+
+- `check` → `download` → `install`. Versions are ordered by semver then by the build date parsed from `R<DDMMYY>`; downgrades are refused. SHA-256 is always enforced; a release without a hash is notify-only.
+- The automatic check runs exactly once per process start, in the background after the servers are listening; there is no periodic re-check. `autoDownload` downloads an installable update found by that check. A platform without a matching asset is simply "no update".
+- Pre-flight before touching anything: install location writable, free space, layout, and the staged build answering `--nex-selfcheck` (printed and exit 0 before any detach or port bind). Failures are `not_applicable`.
+- Install copies the executable as a detached helper, then `Quiesce`: the app quits and the call waits (10 s) until the **public port** is free. The helper swaps the executable, starts the new one (in the foreground, supervised by the helper: a process started by the helper never daemonizes) and watches it for 30 s. The new process probes itself (HTTP request to the public address, RPC round-trip returning its own version) and confirms; **no browser is needed**. An early exit, crash, or missing confirmation restores the previous executable and relaunches it. An interrupted install is completed at the next start.
+- A rolled-back release is remembered (`updater-rejected.json`), flagged `rolledBack` in `check`, and never downloaded automatically again; a manual download/install stays possible.
+- Only one `check` / `download` / `install` at a time (`busy`). The helper and its job files delete themselves at the end (on Windows a running executable cannot delete itself: the leftovers are swept at the next download). The panel re-reads the last result for a few seconds after start.
+- `install` is only allowed to loopback clients unless `Config.UpdateAllowRemoteInstall` is set; hooks (`OnAppControl`, `SecurityPolicy`) still run, with `app` / `update.<op>` and the caller address in `Host`. A client is remote when `RemoteAddr`, any `X-Forwarded-For` / `X-Real-Ip` entry is not loopback, or a `Forwarded` header is present.
+- Install mode is `self` only for a process started by the framework daemon (or by the updater helper) outside a container or supervisor; otherwise (`make dev`, Docker, Kubernetes, systemd, launchd) it is `notify`: updates are reported, never installed.
+- The browser tab keeps running the old bundle after an update: on every SSE reconnection the template compares its build id (`VITE_BUILD_ID`, `<version>-<build>`) with `app.info()` and offers a reload.
+
+Errors are RPC errors with `code`: `not_configured`, `unauthorized`, `busy`, `source_unreachable`, `rate_limited`, `wrong_app`, `no_update`, `no_hash`, `checksum_mismatch`, `size_mismatch`, `signature_invalid`, `bad_archive`, `not_applicable`, `cancelled`, `state_unavailable`, `rollback_failed`.
+
+Release side (one repository per app): public repository, tag `v<MAJOR.MINOR.PATCH>-R<DDMMYY>` (it must match `NEXWEB_APP_VERSION` / `NEXWEB_APP_BUILD`, which also name `release/<version>-<build>/`); one zip per platform named `build-<goos>-<goarch>.zip` containing exactly the executable (GitHub exposes the SHA-256 `digest`); `<asset>.sig` (base64 Ed25519 over the SHA-256) only if you configure keys. `build.go` does not create the zips: the CI publishes them. Non-GitHub hosting: an `https` JSON feed:
+
+```json
+{
+  "app": "<app name>",
+  "version": "1.2.0",
+  "build": "R281026",
+  "date": "2026-10-28",
+  "notes": "…",
+  "assets": {
+    "linux-amd64": { "url": "https://…/build-linux-amd64.zip", "size": 123, "sha256": "<hex>" }
+  }
+}
+```
+
+Packaging (always `binary`, even on macOS; no `.app` bundle):
+
+| Target | Asset | Contains |
+|---|---|---|
+| `darwin/amd64`, `darwin/arm64` | `build-darwin-<arch>.zip` | `<app>` |
+| `linux/amd64`, `linux/arm64` | `build-linux-<arch>.zip` | `<app>` |
+| `windows/amd64` | `build-windows-amd64.zip` | `<app>.exe` |
+
+Not implemented: injecting public keys at build time with `-ldflags`.
+
+---
+
 ## Differences from nex desktop
 
 | Feature | nex (desktop) | nex-web |
@@ -762,6 +869,7 @@ a.Handle("admin.reindex", func(c *nexweb.Context, params json.RawMessage) (any, 
 | Backend→frontend | webview JS eval | SSE EventSource |
 | Daemon mode | No | Yes — `internal/daemon` |
 | Public proxy port | No (random loopback) | Yes — `:3000` |
+| Automatic updates | `NEX_UPDATE_URL`, health from the UI | `NEXWEB_UPDATE_URL`, health from a backend self-probe, install denied to remote clients, notify-only under containers/supervisors |
 | Cross-compile | Host-native only (CGO) | Any host → any target |
 | KV store | Not available | `kv.get/set/delete/list/clear` |
 | DNS resolve | Not available | `netutil.resolve(host)` |

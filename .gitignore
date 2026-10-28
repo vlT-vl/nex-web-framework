@@ -29,5 +29,8 @@ frontend/node_modules/
 # Handoff
 handoff.md
 
+# Session notes by date (local-only)
+innesti/
+
 # Clone guide (local-only, never part of a cloned app's repo either)
 CLONE.md

@@ -5,15 +5,22 @@ import (
 	"log"
 	"os"
 	"os/exec"
+
+	"nex-web/internal/hostenv"
 )
 
-const childEnv = "_NEXWEB_CHILD"
+const childEnv = hostenv.ChildEnv
 
-func MaybeDetach(version, publicAddr string) {
-	if !Enabled() || os.Getenv(childEnv) != "" {
+func MaybeDetach(name, version, publicAddr string) {
+	hostenv.Recover(name)
+	if !Enabled() || os.Getenv(childEnv) != "" || hostenv.UpdaterLaunched() {
 		return
 	}
-	cmd := exec.Command(os.Args[0], os.Args[1:]...)
+	executable, err := os.Executable()
+	if err != nil {
+		executable = os.Args[0]
+	}
+	cmd := exec.Command(executable, os.Args[1:]...)
 	cmd.Stdin = nil
 	cmd.Stdout = nil
 	cmd.Stderr = nil
@@ -23,9 +30,9 @@ func MaybeDetach(version, publicAddr string) {
 		log.Fatalf("nex-web: start daemon: %v", err)
 	}
 	if publicAddr != "" {
-		fmt.Printf("nex-web %s started (PID %d) → http://localhost%s\n", version, cmd.Process.Pid, publicAddr)
+		fmt.Printf("%s %s started (PID %d) → http://localhost%s\n", name, version, cmd.Process.Pid, publicAddr)
 	} else {
-		fmt.Printf("nex-web %s started (PID %d)\n", version, cmd.Process.Pid)
+		fmt.Printf("%s %s started (PID %d)\n", name, version, cmd.Process.Pid)
 	}
 	os.Exit(0)
 }

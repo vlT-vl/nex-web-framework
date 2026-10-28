@@ -666,3 +666,53 @@ body {
 .terminal-label    { display: inline-flex; align-items: center; gap: 5px; }
 .terminal-clear    { display: inline-flex; align-items: center; gap: 4px; }
 .framework-points span { display: inline-flex; align-items: center; gap: 4px; }
+
+.updater-panel { display: flex; flex-direction: column; }
+.updater-note { padding: 12px 16px; }
+.updater-banner {
+  margin: 10px 14px 0;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-family: var(--mono); font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.updater-banner.ok { color: var(--ok); background: var(--ok-soft); }
+.updater-banner.err { color: var(--err); background: var(--err-soft); }
+.updater-update { padding: 12px 16px 0; border-top: 1px solid var(--line); margin-top: 10px; }
+.updater-update-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-family: var(--mono); font-size: 13px; }
+.updater-version { color: var(--accent); }
+.updater-date { color: var(--muted); }
+.updater-tag {
+  color: var(--signal); border: 1px solid var(--signal); border-radius: 4px;
+  padding: 0 6px; font-size: 11px;
+}
+.updater-notes {
+  margin: 8px 0 0; padding: 8px 10px;
+  background: var(--subpanel); border: 1px solid var(--line); border-radius: 4px;
+  font-family: var(--mono); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere;
+  max-height: 160px; overflow: auto;
+}
+.updater-reason { margin-top: 8px; color: var(--muted); font-size: 12px; }
+.updater-progress {
+  position: relative; margin-top: 10px; height: 18px;
+  background: var(--subpanel); border: 1px solid var(--line); border-radius: 4px; overflow: hidden;
+}
+.updater-progress-bar { height: 100%; background: var(--accent-soft); border-right: 1px solid var(--accent); }
+.updater-progress-text {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font-family: var(--mono); font-size: 11px; color: var(--ink);
+}
+.updater-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 16px; }
+.updater-settings {
+  display: flex; flex-wrap: wrap; gap: 8px 18px;
+  padding: 10px 16px 12px; border-top: 1px solid var(--line);
+}
+.updater-toggle { display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 12px; cursor: pointer; }
+.updater-toggle input { accent-color: var(--accent); }
+
+.stale-banner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px 14px;
+  padding: 8px 16px;
+  color: var(--signal); background: var(--accent-soft); border-bottom: 1px solid var(--line);
+  font-family: var(--mono); font-size: 12px; text-align: center;
+}

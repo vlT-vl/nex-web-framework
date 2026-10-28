@@ -95,6 +95,14 @@ func doBuild(release, obfuscate bool) error {
 	}
 	outDir = filepath.Join(releaseRoot, releaseName)
 
+	garblePath := ""
+	if obfuscate {
+		garblePath, err = ensureGarble()
+		if err != nil {
+			return err
+		}
+	}
+
 	if err := ensureGoModules(); err != nil {
 		return err
 	}
@@ -112,10 +120,6 @@ func doBuild(release, obfuscate bool) error {
 	buildPrefix := []string{"build"}
 	garbleScope := ""
 	if obfuscate {
-		garblePath, err := ensureGarble()
-		if err != nil {
-			return err
-		}
 		modulePath, err := modulePathFromGoMod()
 		if err != nil {
 			return err
@@ -169,6 +173,16 @@ func buildTargetBinary(tmpDir, tool string, buildPrefix []string, target buildTa
 	ldParts := []string{}
 	if release {
 		ldParts = append(ldParts, "-s", "-w")
+	}
+	for _, id := range []struct{ key, variable string }{
+		{"NEXWEB_APP_NAME", "buildName"},
+		{"NEXWEB_APP_VERSION", "buildVersion"},
+		{"NEXWEB_APP_BUILD", "buildBuild"},
+		{"NEXWEB_APP_AUTHOR", "buildAuthor"},
+	} {
+		if v := strings.TrimSpace(strings.ReplaceAll(scriptEnvDefault(id.key, ""), "'", "")); v != "" {
+			ldParts = append(ldParts, "-X", "'main."+id.variable+"="+v+"'")
+		}
 	}
 	ldflags := strings.Join(ldParts, " ")
 
@@ -299,7 +313,7 @@ func doRequirements() error {
 	fmt.Println("expected host tools:")
 	fmt.Println("  - Go 1.27.1+")
 	fmt.Println("  - Node 18+ with npm")
-	fmt.Println("  - garble on PATH, or network access for: go install mvdan.cc/garble@latest")
+	fmt.Println("  - garble on PATH built with a Go version at least as recent as the installed one, or network access for: go install mvdan.cc/garble@latest")
 	fmt.Println()
 
 	ok := true
@@ -321,6 +335,10 @@ func doRequirements() error {
 
 	if garblePath, err := exec.LookPath("garble"); err != nil {
 		fmt.Println("  garble: not found — will be installed automatically on first obfuscated build")
+	} else if err := checkGarbleCompatible(garblePath); err != nil {
+		fmt.Printf("  garble: %s  ✗\n", garblePath)
+		fmt.Fprintln(os.Stderr, err)
+		ok = false
 	} else {
 		fmt.Printf("  garble: %s  ✓\n", garblePath)
 	}
@@ -340,6 +358,9 @@ func ensureGoModules() error {
 
 func ensureGarble() (string, error) {
 	if garblePath, err := exec.LookPath("garble"); err == nil {
+		if err := checkGarbleCompatible(garblePath); err != nil {
+			return "", err
+		}
 		return garblePath, nil
 	}
 	fmt.Println("→ garble not found; installing mvdan.cc/garble@latest")
@@ -357,6 +378,71 @@ func ensureGarble() (string, error) {
 		return "", fmt.Errorf("garble installed but not found at %s", garblePath)
 	}
 	return garblePath, nil
+}
+
+func checkGarbleCompatible(garblePath string) error {
+	installed, err := goEnv("GOVERSION")
+	if err != nil {
+		return nil
+	}
+	built, err := goVersionOfBinary(garblePath)
+	if err != nil {
+		return nil
+	}
+	iMajor, iMinor, ok := goMajorMinor(installed)
+	if !ok {
+		return nil
+	}
+	bMajor, bMinor, ok := goMajorMinor(built)
+	if !ok {
+		return nil
+	}
+	if bMajor < iMajor || (bMajor == iMajor && bMinor < iMinor) {
+		return fmt.Errorf("garble at %s was built with %s but the installed Go is %s: this garble is too old for the installed Go and the obfuscated build would fail.\nUpdate it for compatibility, then run the command again:\n  go install mvdan.cc/garble@latest", garblePath, built, installed)
+	}
+	return nil
+}
+
+func goVersionOfBinary(path string) (string, error) {
+	out, err := exec.Command("go", "version", "-m", path).Output()
+	if err != nil {
+		return "", err
+	}
+	line, _, _ := strings.Cut(string(out), "\n")
+	i := strings.LastIndex(line, ": ")
+	if i < 0 {
+		return "", fmt.Errorf("unexpected go version -m output: %q", line)
+	}
+	fields := strings.Fields(line[i+2:])
+	if len(fields) == 0 {
+		return "", fmt.Errorf("unexpected go version -m output: %q", line)
+	}
+	return fields[0], nil
+}
+
+func goMajorMinor(version string) (int, int, bool) {
+	parts := strings.SplitN(strings.TrimPrefix(version, "go"), ".", 3)
+	if len(parts) < 2 {
+		return 0, 0, false
+	}
+	major, ok := leadingInt(parts[0])
+	if !ok {
+		return 0, 0, false
+	}
+	minor, ok := leadingInt(parts[1])
+	if !ok {
+		return 0, 0, false
+	}
+	return major, minor, true
+}
+
+func leadingInt(s string) (int, bool) {
+	end := 0
+	for end < len(s) && s[end] >= '0' && s[end] <= '9' {
+		end++
+	}
+	n, err := strconv.Atoi(s[:end])
+	return n, err == nil
 }
 
 func goBinPath(name string) (string, error) {
@@ -473,6 +559,11 @@ func stringExprValue(expr ast.Expr) (string, bool) {
 }
 
 func releaseNameFromVersion() (string, error) {
+	envVersion := sanitizeReleasePart(scriptEnvDefault("NEXWEB_APP_VERSION", ""))
+	envBuild := sanitizeReleasePart(scriptEnvDefault("NEXWEB_APP_BUILD", ""))
+	if envVersion != "" && envBuild != "" {
+		return envVersion + "-" + envBuild, nil
+	}
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "internal/meta/meta.go", nil, 0)
 	if err != nil {

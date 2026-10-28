@@ -22,6 +22,7 @@ import (
 	"nex-web/internal/meta"
 	"nex-web/internal/session"
 	"nex-web/internal/system"
+	"nex-web/internal/updater"
 )
 
 type Config struct {
@@ -40,6 +41,11 @@ type Config struct {
 	PublicPrefix   string
 	AllowedOrigins []string
 	FSRoot         string
+
+	StateDir                 string
+	UpdateAllowedHosts       []string
+	UpdatePublicKeys         [][]byte
+	UpdateAllowRemoteInstall bool
 
 	SecurityPolicy     core.SecurityPolicy
 	OnSecurityDecision func(*core.Context, core.SecurityDecision) error
@@ -65,12 +71,17 @@ type App struct {
 	handlers map[string]core.HandlerFunc
 	env      *config.Env
 	quit     context.CancelFunc
+	quitMu   sync.Mutex
 
 	nonceMu sync.Mutex
 	nonces  map[string]time.Time
 
 	sseMu   sync.RWMutex
 	sseSubs map[chan sseEvent]struct{}
+
+	upd     *updater.Updater
+	updHost *updaterHost
+	updOnce sync.Once
 }
 
 func New(cfg Config) *App {
@@ -104,6 +115,7 @@ func New(cfg Config) *App {
 	a.Register("sys.app.info", a.sysAppInfo)
 	a.Register("sys.framework.info", a.sysFrameworkInfo)
 	a.Register("sys.framework.stack", a.sysFrameworkStack)
+	a.setupUpdater()
 	return a
 }
 
@@ -190,8 +202,11 @@ func (a *App) Emit(event string, payload any) {
 }
 
 func (a *App) Quit() {
-	if a.quit != nil {
-		a.quit()
+	a.quitMu.Lock()
+	quit := a.quit
+	a.quitMu.Unlock()
+	if quit != nil {
+		quit()
 	}
 }
 
@@ -226,7 +241,9 @@ func (a *App) Run() error {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	a.quitMu.Lock()
 	a.quit = cancel
+	a.quitMu.Unlock()
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/nex.js", a.handleNexJS)
@@ -241,7 +258,7 @@ func (a *App) Run() error {
 		return err
 	}
 	backendAddr := ln.Addr().String()
-	log.Printf("nex-web backend on http://%s", backendAddr)
+	log.Printf("%s backend on http://%s", a.cfg.Name, backendAddr)
 
 	var pubLn net.Listener
 	var pubTarget *url.URL
@@ -272,7 +289,7 @@ func (a *App) Run() error {
 	if pubLn != nil {
 		proxy := httputil.NewSingleHostReverseProxy(pubTarget)
 		proxy.FlushInterval = -1
-		log.Printf("nex-web listening on http://localhost%s", a.cfg.PublicAddr)
+		log.Printf("%s listening on http://localhost%s", a.cfg.Name, a.cfg.PublicAddr)
 		pubSrv := &http.Server{Handler: proxy}
 		go func() {
 			<-ctx.Done()
@@ -282,10 +299,12 @@ func (a *App) Run() error {
 		}()
 		go func() {
 			if err := pubSrv.Serve(pubLn); err != nil && err != http.ErrServerClosed {
-				log.Printf("nex-web public: %v", err)
+				log.Printf("%s public: %v", a.cfg.Name, err)
 			}
 		}()
 	}
+
+	a.startUpdater(backendAddr)
 
 	select {
 	case <-ctx.Done():

@@ -9,9 +9,9 @@ import (
 const Name = "nex-web"
 
 var (
-	Version = "0.1.1"
-	Build   = "R071026"
-	Updated = "7 Ottobre 2026"
+	Version = "0.1.2"
+	Build   = "R281026"
+	Updated = "28 Ottobre 2026"
 	Author  = "© 2026 vlT di Veronesi Lorenzo"
 )
 
